@@ -2,6 +2,7 @@
 const std = @import("std");
 
 pub const sdl = @import("sdl.zig");
+pub const bgfx = @import("bgfx.zig");
 
 pub fn bufferedPrint() !void {
     // Stdout is for the actual output of your application, for example if you

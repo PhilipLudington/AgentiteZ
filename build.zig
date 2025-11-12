@@ -86,6 +86,67 @@ pub fn build(b: *std.Build) void {
     // Link against system-installed SDL3
     exe.linkSystemLibrary("SDL3");
     exe.linkLibC();
+    exe.linkLibCpp();
+
+    // Add bgfx and dependencies
+    const is_macos = target.result.os.tag == .macos;
+    const bgfx_flags = [_][]const u8{
+        "-Wno-deprecated-declarations",
+        "-fno-strict-aliasing",
+        "-fno-exceptions",
+        "-fno-rtti",
+        "-ffast-math",
+        "-DBX_CONFIG_DEBUG=0",
+        "-D__STDC_FORMAT_MACROS",
+        "-D__STDC_LIMIT_MACROS",
+        "-D__STDC_CONSTANT_MACROS",
+        "-DBGFX_CONFIG_MULTITHREADED=0",
+        "-DBIMG_DECODE_ASTC=0",
+        "-DBIMG_ENCODE_ASTC=0",
+        "-Wno-error=implicit-function-declaration", // Allow malloc without malloc.h
+    };
+
+    // Build bx (base library)
+    exe.addCSourceFile(.{
+        .file = b.path("external/bx/src/amalgamated.cpp"),
+        .flags = &bgfx_flags,
+    });
+    exe.addIncludePath(b.path("external/bx/include"));
+    exe.addIncludePath(b.path("external/bx/3rdparty"));
+
+    // Build minimal bimg (image library)
+    exe.addCSourceFiles(.{
+        .files = &[_][]const u8{
+            "external/bimg/src/image.cpp",
+            "external/bimg/src/image_gnf.cpp", // GNF image format support
+        },
+        .flags = &bgfx_flags,
+    });
+    exe.addIncludePath(b.path("external/bimg/include"));
+    exe.addIncludePath(b.path("external/bimg/3rdparty"));
+    exe.addIncludePath(b.path("external/bimg/3rdparty/astc-encoder/include"));
+    exe.addIncludePath(b.path("external/bimg/3rdparty/iqa/include"));
+
+    // Build bgfx (rendering library)
+    // Use .mm file for macOS to get Metal support
+    if (is_macos) {
+        exe.addCSourceFile(.{
+            .file = b.path("external/bgfx/src/amalgamated.mm"),
+            .flags = &bgfx_flags,
+        });
+        exe.linkFramework("Metal");
+        exe.linkFramework("QuartzCore");
+        exe.linkFramework("Cocoa");
+        exe.linkFramework("IOKit"); // For IORegistry* functions
+    } else {
+        exe.addCSourceFile(.{
+            .file = b.path("external/bgfx/src/amalgamated.cpp"),
+            .flags = &bgfx_flags,
+        });
+    }
+    exe.addIncludePath(b.path("external/bgfx/include"));
+    exe.addIncludePath(b.path("external/bgfx/3rdparty"));
+    exe.addIncludePath(b.path("external/bgfx/3rdparty/khronos"));
 
     // This declares intent for the executable to be installed into the
     // install prefix when running `zig build` (i.e. when executing the default
