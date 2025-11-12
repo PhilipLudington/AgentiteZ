@@ -47,22 +47,20 @@
    - Command running: `cd external/bgfx && make shaderc`
    - Background process ID: 083b2e
    - Currently compiling glslang (dependency)
-   - Output location (when done): `external/bgfx/.build/osx-arm64/bin/shaderc`
-   - Check status: `ps aux | grep "[m]ake shaderc"`
-   - View output: `tail -f external/bgfx/.build/*.log` (if exists)
+   - Output location: `external/bgfx/.build/osx-arm64/bin/shadercRelease` ✅ BUILT!
+   - Test: `./external/bgfx/.build/osx-arm64/bin/shadercRelease --version`
 
 ### 🔄 Next Steps
 
-1. **Wait for shaderc to finish building**
-   - Check: `ls external/bgfx/.build/osx-arm64/bin/shaderc`
-   - This may take 5-15 more minutes
+1. **✅ shaderc is BUILT!**
+   - Located at: `external/bgfx/.build/osx-arm64/bin/shadercRelease`
 
 2. **Compile Shaders** (once shaderc is built)
    ```bash
    mkdir -p shaders/compiled
 
    # Metal shaders for macOS
-   ./external/bgfx/.build/osx-arm64/bin/shaderc \
+   ./external/bgfx/.build/osx-arm64/bin/shadercRelease \
      -f shaders/vs_color.sc \
      -o shaders/compiled/vs_color.bin \
      --type vertex \
@@ -70,7 +68,7 @@
      -i external/bgfx/src \
      --profile metal
 
-   ./external/bgfx/.build/osx-arm64/bin/shaderc \
+   ./external/bgfx/.build/osx-arm64/bin/shadercRelease \
      -f shaders/fs_color.sc \
      -o shaders/compiled/fs_color.bin \
      --type fragment \
@@ -78,7 +76,7 @@
      -i external/bgfx/src \
      --profile metal
 
-   ./external/bgfx/.build/osx-arm64/bin/shaderc \
+   ./external/bgfx/.build/osx-arm64/bin/shadercRelease \
      -f shaders/vs_texture.sc \
      -o shaders/compiled/vs_texture.bin \
      --type vertex \
@@ -86,7 +84,7 @@
      -i external/bgfx/src \
      --profile metal
 
-   ./external/bgfx/.build/osx-arm64/bin/shaderc \
+   ./external/bgfx/.build/osx-arm64/bin/shadercRelease \
      -f shaders/fs_texture.sc \
      -o shaders/compiled/fs_texture.bin \
      --type fragment \
