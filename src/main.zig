@@ -2,6 +2,7 @@ const std = @import("std");
 const EtherMud = @import("EtherMud");
 const sdl = EtherMud.sdl;
 const bgfx = EtherMud.bgfx;
+const stb = EtherMud.stb_truetype;
 const c = sdl.c;
 
 pub fn main() !void {
@@ -35,8 +36,16 @@ pub fn main() !void {
     try initBgfx(sys_wm_info, 1920, 1080);
     defer bgfx.shutdown();
 
+    // Enable debug text rendering
+    bgfx.setDebug(bgfx.DebugFlags_Text);
+
     std.debug.print("bgfx initialized successfully!\n", .{});
     std.debug.print("Press ESC or close the window to exit.\n", .{});
+
+    // Get actual window size
+    var window_width: c_int = 0;
+    var window_height: c_int = 0;
+    _ = c.SDL_GetWindowSize(window, &window_width, &window_height);
 
     // Main event loop
     var running = true;
@@ -56,16 +65,16 @@ pub fn main() !void {
                     }
                 },
                 c.SDL_EVENT_WINDOW_RESIZED => {
-                    const width: u32 = @intCast(event.window.data1);
-                    const height: u32 = @intCast(event.window.data2);
-                    bgfx.reset(width, height, bgfx.ResetFlags_Vsync, bgfx.TextureFormat.Count);
+                    window_width = @intCast(event.window.data1);
+                    window_height = @intCast(event.window.data2);
+                    bgfx.reset(@intCast(window_width), @intCast(window_height), bgfx.ResetFlags_Vsync, bgfx.TextureFormat.Count);
                 },
                 else => {},
             }
         }
 
-        // Set view 0 default viewport
-        bgfx.setViewRect(0, 0, 0, 1920, 1080);
+        // Set view 0 to cover the entire window
+        bgfx.setViewRect(0, 0, 0, @intCast(window_width), @intCast(window_height));
 
         // Clear the framebuffer with a cornflower blue color
         bgfx.setViewClear(
@@ -75,6 +84,32 @@ pub fn main() !void {
             1.0,
             0,
         );
+
+        // Use bgfx debug text
+        bgfx.dbgTextClear(0, false);
+
+        // bgfx debug text uses 8x16 pixel characters
+        // Calculate screen dimensions in character cells based on actual window size
+        const screen_cols: u16 = @intCast(@divTrunc(window_width, 8));
+        const screen_rows: u16 = @intCast(@divTrunc(window_height, 16));
+
+        // Create text buffer for just the message
+        const message = "All your base are belong to us";
+        const msg_width: u16 = @intCast(message.len);
+        const msg_height: u16 = 1;
+        var text_buffer = [_]u8{0} ** (message.len * 2); // 2 bytes per char (char + color)
+
+        // Fill the buffer with our message
+        for (message, 0..) |char, i| {
+            text_buffer[i * 2] = char;
+            text_buffer[i * 2 + 1] = 0x0f; // white on black
+        }
+
+        // Position the text centered on screen
+        const pos_x: u16 = (screen_cols - msg_width) / 2;
+        const pos_y: u16 = screen_rows / 2;
+
+        bgfx.dbgTextImage(pos_x, pos_y, msg_width, msg_height, &text_buffer, msg_width * 2);
 
         // Submit an empty primitive to view 0
         bgfx.touch(0);

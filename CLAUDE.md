@@ -42,15 +42,17 @@ The project has two main modules:
 1. **EtherMud module** (`src/root.zig`) - Library module exposing:
    - `sdl` - SDL3 wrapper utilities
    - `bgfx` - bgfx rendering bindings
+   - `stb_truetype` - TrueType font rendering
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the EtherMud module
 
 ### Key Source Files
 
 - `src/main.zig` - Main game loop, window creation, bgfx initialization
-- `src/root.zig` - Module exports for SDL and bgfx wrappers
+- `src/root.zig` - Module exports for SDL, bgfx, and stb_truetype wrappers
 - `src/sdl.zig` - SDL3 wrapper providing Zig-friendly interfaces
 - `src/bgfx.zig` - Auto-generated bgfx bindings (62K+ lines, DO NOT EDIT)
+- `src/stb_truetype.zig` - stb_truetype wrapper for TrueType font rendering
 
 ### SDL3 Integration
 
@@ -110,9 +112,36 @@ init.type = bgfx.RendererType.Count; // Auto-select renderer
 
 The renderer auto-selects based on platform (Metal on macOS).
 
+### stb_truetype Integration
+
+stb_truetype is integrated as a header-only library:
+- Header file: `external/stb/stb_truetype.h`
+- Zig wrapper: `src/stb_truetype.zig` provides Zig-friendly bindings
+- Implementation is included via `STB_TRUETYPE_IMPLEMENTATION` define in the wrapper
+
+Key features available:
+- **Font loading**: `initFont()` to initialize font from TTF/OTF data
+- **Glyph metrics**: `getCodepointHMetrics()`, `getCodepointBox()`, etc.
+- **Bitmap rendering**: `getCodepointBitmap()` for rasterizing glyphs
+- **SDF rendering**: `getCodepointSDF()` for distance field fonts
+- **Texture packing**: `bakeFontBitmap()` for simple atlas generation, or `packBegin()`/`packFontRanges()` for advanced packing
+
+Usage pattern:
+```zig
+const stb = @import("EtherMud").stb_truetype;
+
+var font_info: stb.FontInfo = undefined;
+_ = stb.initFont(&font_info, font_data.ptr, 0);
+
+const scale = stb.scaleForPixelHeight(&font_info, pixel_height);
+// Use font_info and scale to render glyphs...
+```
+
 ## Important Notes
 
 - `src/bgfx.zig` is auto-generated from the bgfx C API - modifications should be made to the bgfx binding generator, not this file
 - The build system links multiple frameworks on macOS: Metal, QuartzCore, Cocoa, IOKit
-- External dependencies (bx, bimg, bgfx) are in `external/` as git submodules
+- External dependencies are in `external/`:
+  - `bx`, `bimg`, `bgfx` - git submodules for rendering
+  - `stb` - stb_truetype header-only library (downloaded directly)
 - Zig 0.15.1 is the target version - newer Zig releases may have breaking changes
