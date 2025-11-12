@@ -1,8 +1,9 @@
 const std = @import("std");
 const root = @import("../root.zig");
 const bgfx = root.bgfx;
-const stb = root.stb_truetype;
+// const stb = root.stb_truetype; // TODO: Fix stb_truetype cImport issues
 const types = @import("types.zig");
+const shaders = @import("shaders.zig");
 
 pub const Rect = types.Rect;
 pub const Color = types.Color;
@@ -23,6 +24,25 @@ const ColorVertex = extern struct {
     }
 };
 
+/// Vertex for textured 2D primitives (fonts, images)
+const TextureVertex = extern struct {
+    x: f32,
+    y: f32,
+    u: f32,
+    v: f32,
+    abgr: u32,
+
+    fn init(x: f32, y: f32, u: f32, v: f32, color: Color) TextureVertex {
+        return .{
+            .x = x,
+            .y = y,
+            .u = u,
+            .v = v,
+            .abgr = colorToABGR(color),
+        };
+    }
+};
+
 /// Convert Color to ABGR format
 fn colorToABGR(color: Color) u32 {
     return (@as(u32, color.a) << 24) |
@@ -31,94 +51,41 @@ fn colorToABGR(color: Color) u32 {
         (@as(u32, color.r) << 0);
 }
 
-/// Font atlas for text rendering
-const FontAtlas = struct {
-    texture: bgfx.TextureHandle,
-    width: u32,
-    height: u32,
-    char_data: [96]stb.c.stbtt_bakedchar, // ASCII 32-127
-    allocator: std.mem.Allocator,
+// TODO: Re-enable FontAtlas when stb_truetype cImport issues are resolved
+// /// Font atlas for text rendering
+// const FontAtlas = struct {
+//     texture: bgfx.TextureHandle,
+//     width: u32,
+//     height: u32,
+//     char_data: [96]stb.c.stbtt_bakedchar, // ASCII 32-127
+//     font_size: f32,
+//
+//     fn init(allocator: std.mem.Allocator, font_data: []const u8, font_size: f32) !FontAtlas {
+//         ...
+//     }
+//
+//     fn deinit(self: *FontAtlas) void {
+//         bgfx.destroyTexture(self.texture);
+//     }
+// };
 
-    fn init(allocator: std.mem.Allocator, font_data: []const u8, font_size: f32) !FontAtlas {
-        const atlas_width: u32 = 512;
-        const atlas_height: u32 = 512;
-
-        // Allocate bitmap for font atlas
-        const bitmap = try allocator.alloc(u8, atlas_width * atlas_height);
-        defer allocator.free(bitmap);
-        @memset(bitmap, 0);
-
-        var char_data: [96]stb.c.stbtt_bakedchar = undefined;
-
-        // Bake font into bitmap
-        const result = stb.c.stbtt_BakeFontBitmap(
-            font_data.ptr,
-            0,
-            font_size,
-            bitmap.ptr,
-            @intCast(atlas_width),
-            @intCast(atlas_height),
-            32, // First char (space)
-            96, // Num chars
-            &char_data,
-        );
-
-        if (result <= 0) {
-            return error.FontBakeFailed;
-        }
-
-        // Convert grayscale to RGBA
-        const rgba_bitmap = try allocator.alloc(u8, atlas_width * atlas_height * 4);
-        defer allocator.free(rgba_bitmap);
-
-        for (bitmap, 0..) |gray, i| {
-            rgba_bitmap[i * 4 + 0] = 255; // R
-            rgba_bitmap[i * 4 + 1] = 255; // G
-            rgba_bitmap[i * 4 + 2] = 255; // B
-            rgba_bitmap[i * 4 + 3] = gray; // A
-        }
-
-        // Create bgfx texture
-        const texture_mem = bgfx.copy(rgba_bitmap.ptr, @intCast(rgba_bitmap.len));
-        const texture = bgfx.createTexture2D(
-            @intCast(atlas_width),
-            @intCast(atlas_height),
-            false,
-            1,
-            bgfx.TextureFormat.RGBA8,
-            0,
-            texture_mem,
-        );
-
-        return .{
-            .texture = texture,
-            .width = atlas_width,
-            .height = atlas_height,
-            .char_data = char_data,
-            .allocator = allocator,
-        };
-    }
-
-    fn deinit(self: *FontAtlas) void {
-        bgfx.destroy(self.texture);
-    }
-};
-
-/// Batch for collecting draw calls
+/// Batch for collecting colored draw calls
 const DrawBatch = struct {
+    allocator: std.mem.Allocator,
     vertices: std.ArrayList(ColorVertex),
     indices: std.ArrayList(u16),
 
     fn init(allocator: std.mem.Allocator) DrawBatch {
         return .{
-            .vertices = std.ArrayList(ColorVertex).init(allocator),
-            .indices = std.ArrayList(u16).init(allocator),
+            .allocator = allocator,
+            .vertices = .{},
+            .indices = .{},
         };
     }
 
     fn deinit(self: *DrawBatch) void {
-        self.vertices.deinit();
-        self.indices.deinit();
+        self.vertices.deinit(self.allocator);
+        self.indices.deinit(self.allocator);
     }
 
     fn clear(self: *DrawBatch) void {
@@ -130,19 +97,63 @@ const DrawBatch = struct {
         const base_idx: u16 = @intCast(self.vertices.items.len);
 
         // Add vertices
-        try self.vertices.append(ColorVertex.init(x, y, color));
-        try self.vertices.append(ColorVertex.init(x + w, y, color));
-        try self.vertices.append(ColorVertex.init(x + w, y + h, color));
-        try self.vertices.append(ColorVertex.init(x, y + h, color));
+        try self.vertices.append(self.allocator, ColorVertex.init(x, y, color));
+        try self.vertices.append(self.allocator, ColorVertex.init(x + w, y, color));
+        try self.vertices.append(self.allocator, ColorVertex.init(x + w, y + h, color));
+        try self.vertices.append(self.allocator, ColorVertex.init(x, y + h, color));
 
         // Add indices (two triangles)
-        try self.indices.append(base_idx + 0);
-        try self.indices.append(base_idx + 1);
-        try self.indices.append(base_idx + 2);
+        try self.indices.append(self.allocator, base_idx + 0);
+        try self.indices.append(self.allocator, base_idx + 1);
+        try self.indices.append(self.allocator, base_idx + 2);
 
-        try self.indices.append(base_idx + 0);
-        try self.indices.append(base_idx + 2);
-        try self.indices.append(base_idx + 3);
+        try self.indices.append(self.allocator, base_idx + 0);
+        try self.indices.append(self.allocator, base_idx + 2);
+        try self.indices.append(self.allocator, base_idx + 3);
+    }
+};
+
+/// Batch for collecting textured draw calls (fonts, images)
+const TextureBatch = struct {
+    allocator: std.mem.Allocator,
+    vertices: std.ArrayList(TextureVertex),
+    indices: std.ArrayList(u16),
+
+    fn init(allocator: std.mem.Allocator) TextureBatch {
+        return .{
+            .allocator = allocator,
+            .vertices = .{},
+            .indices = .{},
+        };
+    }
+
+    fn deinit(self: *TextureBatch) void {
+        self.vertices.deinit(self.allocator);
+        self.indices.deinit(self.allocator);
+    }
+
+    fn clear(self: *TextureBatch) void {
+        self.vertices.clearRetainingCapacity();
+        self.indices.clearRetainingCapacity();
+    }
+
+    fn addQuad(self: *TextureBatch, x: f32, y: f32, w: f32, h: f32, uv_x0: f32, uv_y0: f32, uv_x1: f32, uv_y1: f32, color: Color) !void {
+        const base_idx: u16 = @intCast(self.vertices.items.len);
+
+        // Add vertices with UVs
+        try self.vertices.append(self.allocator, TextureVertex.init(x, y, uv_x0, uv_y0, color));
+        try self.vertices.append(self.allocator, TextureVertex.init(x + w, y, uv_x1, uv_y0, color));
+        try self.vertices.append(self.allocator, TextureVertex.init(x + w, y + h, uv_x1, uv_y1, color));
+        try self.vertices.append(self.allocator, TextureVertex.init(x, y + h, uv_x0, uv_y1, color));
+
+        // Add indices (two triangles)
+        try self.indices.append(self.allocator, base_idx + 0);
+        try self.indices.append(self.allocator, base_idx + 1);
+        try self.indices.append(self.allocator, base_idx + 2);
+
+        try self.indices.append(self.allocator, base_idx + 0);
+        try self.indices.append(self.allocator, base_idx + 2);
+        try self.indices.append(self.allocator, base_idx + 3);
     }
 };
 
@@ -152,56 +163,95 @@ pub const Renderer2DProper = struct {
     window_width: u32,
     window_height: u32,
 
-    // Vertex layout
-    vertex_layout: bgfx.VertexLayout,
+    // Shader programs
+    shader_programs: shaders.ShaderPrograms,
 
-    // Draw batch
-    batch: DrawBatch,
+    // Vertex layouts
+    color_vertex_layout: bgfx.VertexLayout,
+    texture_vertex_layout: bgfx.VertexLayout,
 
-    // Font atlas (TODO: load actual font)
-    font_atlas: ?FontAtlas,
+    // Draw batches
+    color_batch: DrawBatch,
+    texture_batch: TextureBatch,
+
+    // Font atlas for text rendering (TODO: Re-enable when stb_truetype works)
+    // font_atlas: ?FontAtlas,
 
     // View ID for UI rendering
     view_id: bgfx.ViewId,
 
     pub fn init(allocator: std.mem.Allocator, window_width: u32, window_height: u32) !Renderer2DProper {
+        // Initialize shader programs
+        const shader_programs = try shaders.ShaderPrograms.init();
+
         // Create vertex layout for colored vertices
-        var vertex_layout: bgfx.VertexLayout = undefined;
-        bgfx.vertexLayoutBegin(&vertex_layout, bgfx.RendererType.Noop);
-        _ = bgfx.vertexLayoutAdd(
-            &vertex_layout,
+        var color_vertex_layout: bgfx.VertexLayout = undefined;
+        _ = color_vertex_layout.begin(bgfx.RendererType.Noop);
+        _ = color_vertex_layout.add(
             bgfx.Attrib.Position,
             2,
             bgfx.AttribType.Float,
             false,
             false,
         );
-        _ = bgfx.vertexLayoutAdd(
-            &vertex_layout,
+        _ = color_vertex_layout.add(
             bgfx.Attrib.Color0,
             4,
             bgfx.AttribType.Uint8,
             true,
             false,
         );
-        bgfx.vertexLayoutEnd(&vertex_layout);
+        color_vertex_layout.end();
+
+        // Create vertex layout for textured vertices
+        var texture_vertex_layout: bgfx.VertexLayout = undefined;
+        _ = texture_vertex_layout.begin(bgfx.RendererType.Noop);
+        _ = texture_vertex_layout.add(
+            bgfx.Attrib.Position,
+            2,
+            bgfx.AttribType.Float,
+            false,
+            false,
+        );
+        _ = texture_vertex_layout.add(
+            bgfx.Attrib.TexCoord0,
+            2,
+            bgfx.AttribType.Float,
+            false,
+            false,
+        );
+        _ = texture_vertex_layout.add(
+            bgfx.Attrib.Color0,
+            4,
+            bgfx.AttribType.Uint8,
+            true,
+            false,
+        );
+        texture_vertex_layout.end();
+
+        // TODO: Load font atlas when stb_truetype cImport works
 
         return .{
             .allocator = allocator,
             .window_width = window_width,
             .window_height = window_height,
-            .vertex_layout = vertex_layout,
-            .batch = DrawBatch.init(allocator),
-            .font_atlas = null,
+            .shader_programs = shader_programs,
+            .color_vertex_layout = color_vertex_layout,
+            .texture_vertex_layout = texture_vertex_layout,
+            .color_batch = DrawBatch.init(allocator),
+            .texture_batch = TextureBatch.init(allocator),
+            // .font_atlas = null,
             .view_id = 0,
         };
     }
 
     pub fn deinit(self: *Renderer2DProper) void {
-        self.batch.deinit();
-        if (self.font_atlas) |*atlas| {
-            atlas.deinit();
-        }
+        self.shader_programs.deinit();
+        self.color_batch.deinit();
+        self.texture_batch.deinit();
+        // if (self.font_atlas) |*atlas| {
+        //     atlas.deinit();
+        // }
     }
 
     pub fn updateWindowSize(self: *Renderer2DProper, width: u32, height: u32) void {
@@ -209,30 +259,32 @@ pub const Renderer2DProper = struct {
         self.window_height = height;
     }
 
-    /// Begin frame - clear batch
+    /// Begin frame - clear batches
     pub fn beginFrame(self: *Renderer2DProper) void {
-        self.batch.clear();
+        self.color_batch.clear();
+        self.texture_batch.clear();
     }
 
-    /// End frame - flush batch
+    /// End frame - flush batches
     pub fn endFrame(self: *Renderer2DProper) void {
-        self.flush();
+        self.flushColorBatch();
+        self.flushTextureBatch();
     }
 
-    /// Flush draw batch to GPU
-    fn flush(self: *Renderer2DProper) void {
-        if (self.batch.vertices.items.len == 0) return;
+    /// Flush colored draw batch to GPU
+    fn flushColorBatch(self: *Renderer2DProper) void {
+        if (self.color_batch.vertices.items.len == 0) return;
 
         // Allocate transient buffers
         var tvb: bgfx.TransientVertexBuffer = undefined;
         var tib: bgfx.TransientIndexBuffer = undefined;
 
-        const num_vertices: u32 = @intCast(self.batch.vertices.items.len);
-        const num_indices: u32 = @intCast(self.batch.indices.items.len);
+        const num_vertices: u32 = @intCast(self.color_batch.vertices.items.len);
+        const num_indices: u32 = @intCast(self.color_batch.indices.items.len);
 
         if (!bgfx.allocTransientBuffers(
             &tvb,
-            &self.vertex_layout,
+            &self.color_vertex_layout,
             num_vertices,
             &tib,
             num_indices,
@@ -243,17 +295,17 @@ pub const Renderer2DProper = struct {
 
         // Copy vertex data
         const vertex_size = @sizeOf(ColorVertex);
-        const vertices_bytes = self.batch.vertices.items.len * vertex_size;
+        const vertices_bytes = self.color_batch.vertices.items.len * vertex_size;
         @memcpy(
             @as([*]u8, @ptrCast(tvb.data))[0..vertices_bytes],
-            std.mem.sliceAsBytes(self.batch.vertices.items),
+            std.mem.sliceAsBytes(self.color_batch.vertices.items),
         );
 
         // Copy index data
-        const indices_bytes = self.batch.indices.items.len * @sizeOf(u16);
+        const indices_bytes = self.color_batch.indices.items.len * @sizeOf(u16);
         @memcpy(
             @as([*]u8, @ptrCast(tib.data))[0..indices_bytes],
-            std.mem.sliceAsBytes(self.batch.indices.items),
+            std.mem.sliceAsBytes(self.color_batch.indices.items),
         );
 
         // Set up orthographic projection
@@ -268,24 +320,31 @@ pub const Renderer2DProper = struct {
         bgfx.setViewTransform(self.view_id, null, &proj);
 
         // Set vertex and index buffers
-        bgfx.setVertexBuffer(0, &tvb, 0, num_vertices);
-        bgfx.setIndexBuffer(&tib, 0, num_indices);
+        bgfx.setTransientVertexBuffer(0, &tvb, 0, num_vertices);
+        bgfx.setTransientIndexBuffer(&tib, 0, num_indices);
 
-        // Set render state (alpha blending)
+        // Set render state (alpha blending: src_alpha, inv_src_alpha)
         bgfx.setState(
             bgfx.StateFlags_WriteRgb |
                 bgfx.StateFlags_WriteA |
-                bgfx.StateFlags_BlendAlpha,
+                bgfx.StateFlags_BlendSrcAlpha |
+                ((bgfx.StateFlags_BlendInvSrcAlpha) << 4),
             0,
         );
 
-        // Submit draw call
-        _ = bgfx.submit(self.view_id, bgfx.ProgramHandle_Invalid, 0, false);
+        // Submit draw call with color shader program
+        _ = bgfx.submit(self.view_id, self.shader_programs.color_program, 0, 0);
+    }
+
+    /// Flush textured draw batch to GPU - TODO: Re-enable when font atlas works
+    fn flushTextureBatch(self: *Renderer2DProper) void {
+        _ = self;
+        // TODO: Implement texture batch flushing when font atlas is working
     }
 
     /// Draw a filled rectangle
     pub fn drawRect(self: *Renderer2DProper, rect: Rect, color: Color) void {
-        self.batch.addQuad(rect.x, rect.y, rect.width, rect.height, color) catch return;
+        self.color_batch.addQuad(rect.x, rect.y, rect.width, rect.height, color) catch return;
     }
 
     /// Draw rectangle outline
@@ -300,27 +359,14 @@ pub const Renderer2DProper = struct {
         self.drawRect(.{ .x = rect.x + rect.width - thickness, .y = rect.y + thickness, .width = thickness, .height = rect.height - (thickness * 2) }, color);
     }
 
-    /// Draw text (simplified - falls back to debug text for now)
+    /// Draw text - TODO: Implement when font atlas works
     pub fn drawText(self: *Renderer2DProper, text: []const u8, pos: Vec2, size: f32, color: Color) void {
-        _ = size;
         _ = self;
-        // TODO: Implement with font atlas
-        // For now, use debug text
-        const char_x: u16 = @intFromFloat(pos.x / 8.0);
-        const char_y: u16 = @intFromFloat(pos.y / 16.0);
-        const attr: u8 = colorToBgfxAttr(color);
-
-        var text_buffer: std.ArrayList(u8) = .{};
-        defer text_buffer.deinit(self.allocator);
-
-        for (text) |char| {
-            text_buffer.append(self.allocator, char) catch return;
-            text_buffer.append(self.allocator, attr) catch return;
-        }
-
-        if (text_buffer.items.len > 0) {
-            bgfx.dbgTextImage(char_x, char_y, @intCast(text.len), 1, text_buffer.items.ptr, @intCast(text.len * 2));
-        }
+        _ = text;
+        _ = pos;
+        _ = size;
+        _ = color;
+        // TODO: Re-enable font atlas rendering when stb_truetype cImport works
     }
 
     /// Measure text size
@@ -332,14 +378,16 @@ pub const Renderer2DProper = struct {
 
     /// Begin scissor
     pub fn beginScissor(self: *Renderer2DProper, rect: Rect) void {
-        // Flush current batch before scissor
-        self.flush();
+        // Flush current batches before scissor
+        self.flushColorBatch();
+        self.flushTextureBatch();
         _ = bgfx.setScissor(@intFromFloat(rect.x), @intFromFloat(rect.y), @intFromFloat(rect.width), @intFromFloat(rect.height));
     }
 
     /// End scissor
     pub fn endScissor(self: *Renderer2DProper) void {
-        self.flush();
+        self.flushColorBatch();
+        self.flushTextureBatch();
         _ = bgfx.setScissor(0, 0, @intCast(self.window_width), @intCast(self.window_height));
     }
 

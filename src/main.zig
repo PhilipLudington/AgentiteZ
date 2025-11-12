@@ -76,10 +76,10 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var bgfx_renderer = ui.BgfxRenderer.init(allocator, @intCast(window_width), @intCast(window_height));
-    defer bgfx_renderer.deinit();
+    var renderer_2d = try ui.Renderer2DProper.init(allocator, @intCast(window_width), @intCast(window_height));
+    defer renderer_2d.deinit();
 
-    const renderer = ui.Renderer.init(&bgfx_renderer);
+    const renderer = ui.Renderer.init(&renderer_2d);
     var ctx = ui.Context.init(allocator, renderer);
     defer ctx.deinit();
 
@@ -126,7 +126,7 @@ pub fn main() !void {
                     window_width = @intCast(event.window.data1);
                     window_height = @intCast(event.window.data2);
                     bgfx.reset(@intCast(window_width), @intCast(window_height), bgfx.ResetFlags_Vsync, bgfx.TextureFormat.Count);
-                    bgfx_renderer.updateWindowSize(@intCast(window_width), @intCast(window_height));
+                    renderer_2d.updateWindowSize(@intCast(window_width), @intCast(window_height));
                 },
                 c.SDL_EVENT_MOUSE_BUTTON_DOWN => {
                     if (event.button.button == c.SDL_BUTTON_LEFT) {
@@ -159,6 +159,9 @@ pub fn main() !void {
 
         // Clear debug text
         bgfx.dbgTextClear(0, false);
+
+        // Begin 2D renderer frame
+        renderer_2d.beginFrame();
 
         // Begin UI frame
         ctx.beginFrame(input);
@@ -315,6 +318,9 @@ pub fn main() !void {
 
         // End UI frame
         ctx.endFrame();
+
+        // End 2D renderer frame (flushes draw batches)
+        renderer_2d.endFrame();
 
         // Submit an empty primitive to view 0
         bgfx.touch(0);

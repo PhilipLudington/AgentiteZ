@@ -7,6 +7,7 @@ pub const context = @import("ui/context.zig");
 pub const widgets = @import("ui/widgets.zig");
 pub const dpi = @import("ui/dpi.zig");
 pub const bgfx_renderer = @import("ui/bgfx_renderer.zig");
+pub const renderer_2d_proper = @import("ui/renderer_2d_proper.zig");
 
 // Re-export commonly used types
 pub const Vec2 = types.Vec2;
@@ -21,6 +22,7 @@ pub const Key = types.Key;
 pub const Context = context.Context;
 pub const Renderer = renderer.Renderer;
 pub const BgfxRenderer = bgfx_renderer.BgfxRenderer;
+pub const Renderer2DProper = renderer_2d_proper.Renderer2DProper;
 
 // Re-export widget functions
 pub const button = widgets.button;
