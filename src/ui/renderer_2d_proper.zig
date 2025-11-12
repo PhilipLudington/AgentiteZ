@@ -58,10 +58,31 @@ const FontAtlas = struct {
     height: u32,
     char_data: [96]stb.c.stbtt_bakedchar, // ASCII 32-127
     font_size: f32,
+    ascent: f32,
+    descent: f32,
+    line_gap: f32,
 
     fn init(allocator: std.mem.Allocator, font_data: []const u8, font_size: f32) !FontAtlas {
         const atlas_width: u32 = 1024;
         const atlas_height: u32 = 1024;
+
+        // Initialize font info to get metrics
+        var font_info: stb.FontInfo = undefined;
+        if (stb.initFont(&font_info, font_data.ptr, 0) == 0) {
+            return error.FontInitFailed;
+        }
+
+        // Get font vertical metrics
+        var ascent: c_int = undefined;
+        var descent: c_int = undefined;
+        var line_gap: c_int = undefined;
+        stb.getFontVMetrics(&font_info, &ascent, &descent, &line_gap);
+
+        // Scale metrics to pixel height
+        const scale = stb.scaleForPixelHeight(&font_info, font_size);
+        const scaled_ascent = @as(f32, @floatFromInt(ascent)) * scale;
+        const scaled_descent = @as(f32, @floatFromInt(descent)) * scale;
+        const scaled_line_gap = @as(f32, @floatFromInt(line_gap)) * scale;
 
         // Allocate bitmap for font atlas
         const bitmap = try allocator.alloc(u8, atlas_width * atlas_height);
@@ -116,6 +137,9 @@ const FontAtlas = struct {
             .height = atlas_height,
             .char_data = char_data,
             .font_size = font_size,
+            .ascent = scaled_ascent,
+            .descent = scaled_descent,
+            .line_gap = scaled_line_gap,
         };
     }
 
@@ -235,6 +259,10 @@ pub const Renderer2DProper = struct {
     // View ID for UI rendering
     view_id: bgfx.ViewId,
 
+    // Scissor state
+    scissor_cache: u16,
+    scissor_enabled: bool,
+
     pub fn init(allocator: std.mem.Allocator, window_width: u32, window_height: u32) !Renderer2DProper {
         // Initialize shader programs
         const shader_programs = try shaders.ShaderPrograms.init();
@@ -299,6 +327,8 @@ pub const Renderer2DProper = struct {
             .texture_batch = TextureBatch.init(allocator),
             .font_atlas = font_atlas,
             .view_id = 0,
+            .scissor_cache = 0,
+            .scissor_enabled = false,
         };
     }
 
@@ -319,6 +349,8 @@ pub const Renderer2DProper = struct {
     pub fn beginFrame(self: *Renderer2DProper) void {
         self.color_batch.clear();
         self.texture_batch.clear();
+        // Reset scissor state each frame
+        self.scissor_enabled = false;
     }
 
     /// End frame - flush batches
@@ -378,6 +410,11 @@ pub const Renderer2DProper = struct {
         // Set vertex and index buffers
         bgfx.setTransientVertexBuffer(0, &tvb, 0, num_vertices);
         bgfx.setTransientIndexBuffer(&tib, 0, num_indices);
+
+        // Apply scissor if enabled
+        if (self.scissor_enabled) {
+            bgfx.setScissorCached(self.scissor_cache);
+        }
 
         // Set render state (alpha blending: src_alpha, inv_src_alpha)
         bgfx.setState(
@@ -447,6 +484,11 @@ pub const Renderer2DProper = struct {
         // Set texture
         bgfx.setTexture(0, self.shader_programs.texture_sampler, self.font_atlas.texture, 0xffffffff);
 
+        // Apply scissor if enabled
+        if (self.scissor_enabled) {
+            bgfx.setScissorCached(self.scissor_cache);
+        }
+
         // Set render state (alpha blending: src_alpha, inv_src_alpha)
         bgfx.setState(
             bgfx.StateFlags_WriteRgb |
@@ -513,24 +555,61 @@ pub const Renderer2DProper = struct {
 
     /// Measure text size
     pub fn measureText(self: *Renderer2DProper, text: []const u8, font_size: f32) Vec2 {
-        _ = self;
-        _ = font_size;
-        return Vec2.init(@as(f32, @floatFromInt(text.len)) * 8.0, 16.0);
+        const scale = font_size / self.font_atlas.font_size;
+        var width: f32 = 0;
+
+        for (text) |char| {
+            if (char < 32 or char >= 128) continue; // Skip non-ASCII
+
+            const char_index: usize = char - 32;
+            const char_info = &self.font_atlas.char_data[char_index];
+
+            // Accumulate width
+            width += char_info.xadvance * scale;
+        }
+
+        // Return actual measured dimensions
+        // Height is ascent - descent (since descent is negative)
+        const scale_metrics = font_size / self.font_atlas.font_size;
+        const total_height = self.font_atlas.ascent - self.font_atlas.descent;
+        return Vec2.init(width, total_height * scale_metrics);
+    }
+
+    /// Get baseline offset for vertically centering text
+    /// When you want to center text in a box, use: baseline_y = box_center_y + getBaselineOffset(font_size)
+    pub fn getBaselineOffset(self: *Renderer2DProper, font_size: f32) f32 {
+        const scale = font_size / self.font_atlas.font_size;
+        // For vertical centering, the baseline should be offset by half the cap height
+        // Cap height is approximately ascent * 0.7 for most fonts, but we'll use ascent/2 as a simple approximation
+        // A better approach: offset from center by (ascent - descent) / 2 - ascent
+        const total_height = self.font_atlas.ascent - self.font_atlas.descent;
+        return (total_height * 0.5 - self.font_atlas.ascent) * scale;
     }
 
     /// Begin scissor
     pub fn beginScissor(self: *Renderer2DProper, rect: Rect) void {
-        // Flush current batches before scissor
+        // Flush current batches before changing scissor
         self.flushColorBatch();
         self.flushTextureBatch();
-        _ = bgfx.setScissor(@intFromFloat(rect.x), @intFromFloat(rect.y), @intFromFloat(rect.width), @intFromFloat(rect.height));
+
+        // Set scissor rectangle and cache the handle
+        self.scissor_cache = bgfx.setScissor(
+            @intFromFloat(rect.x),
+            @intFromFloat(rect.y),
+            @intFromFloat(rect.width),
+            @intFromFloat(rect.height)
+        );
+        self.scissor_enabled = true;
     }
 
     /// End scissor
     pub fn endScissor(self: *Renderer2DProper) void {
+        // Flush batches with current scissor
         self.flushColorBatch();
         self.flushTextureBatch();
-        _ = bgfx.setScissor(0, 0, @intCast(self.window_width), @intCast(self.window_height));
+
+        // Disable scissor
+        self.scissor_enabled = false;
     }
 
     pub fn isNull(self: *Renderer2DProper) bool {

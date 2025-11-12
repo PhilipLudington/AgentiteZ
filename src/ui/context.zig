@@ -20,6 +20,22 @@ const WidgetState = struct {
     rect: Rect = undefined,
 };
 
+/// Overlay rendering callback - stores a function to call at end of frame
+const OverlayCallback = struct {
+    render_fn: *const fn (ctx: *Context, data: *anyopaque) void,
+    data: *anyopaque,
+};
+
+/// Dropdown overlay data for deferred rendering (to avoid heap allocation per frame)
+pub const DropdownOverlay = struct {
+    list_rect: Rect,
+    options: []const []const u8,
+    selected_index: usize,
+    text_size: f32,
+    item_height: f32,
+    state_ptr: *anyopaque,  // Pointer to DropdownState
+};
+
 /// UI Context - manages state for hybrid immediate mode UI
 pub const Context = struct {
     allocator: std.mem.Allocator,
@@ -54,6 +70,12 @@ pub const Context = struct {
     /// UI Theme
     theme: Theme,
 
+    /// Deferred overlay rendering callbacks (rendered at end of frame for proper z-ordering)
+    overlay_callbacks: std.ArrayList(OverlayCallback),
+
+    /// Deferred dropdown overlays (rendered at end of frame on top of everything)
+    dropdown_overlays: std.ArrayList(DropdownOverlay),
+
     pub fn init(allocator: std.mem.Allocator, renderer: Renderer) Context {
         // Use mock DPI config - TODO: pass window info when available
         const dpi_config = DpiConfig.initMock();
@@ -67,12 +89,16 @@ pub const Context = struct {
             .layout_stack = .{},
             .dpi_config = dpi_config,
             .theme = Theme.imperial(), // Default to Imperial salvaged tech theme
+            .overlay_callbacks = .{},
+            .dropdown_overlays = .{},
         };
     }
 
     pub fn deinit(self: *Context) void {
         self.widget_states.deinit();
         self.layout_stack.deinit(self.allocator);
+        self.overlay_callbacks.deinit(self.allocator);
+        self.dropdown_overlays.deinit(self.allocator);
     }
 
     /// Begin a new frame
@@ -103,13 +129,32 @@ pub const Context = struct {
 
         // Reset tooltip for this frame
         self.tooltip_text = null;
+
+        // Clear overlay callbacks from previous frame
+        self.overlay_callbacks.clearRetainingCapacity();
+        self.dropdown_overlays.clearRetainingCapacity();
     }
 
-    /// End the frame
+    /// End the frame - renders deferred overlays
     pub fn endFrame(self: *Context) void {
-        _ = self;
+        // Render all deferred overlays (dropdowns, tooltips, modals, etc.)
+        for (self.overlay_callbacks.items) |callback| {
+            callback.render_fn(self, callback.data);
+        }
+
+        // Render all deferred dropdown overlays
+        for (self.dropdown_overlays.items) |overlay| {
+            renderDropdownOverlay(self, overlay);
+        }
+
         // Clean up old widget states that weren't used this frame
         // (In a full implementation, you'd mark widgets as "alive" and prune dead ones)
+    }
+
+    /// Render a single dropdown overlay
+    fn renderDropdownOverlay(ctx: *Context, overlay: DropdownOverlay) void {
+        const dropdown_overlay = @import("dropdown_overlay.zig");
+        dropdown_overlay.renderDropdownList(ctx, overlay);
     }
 
     /// Check if widget is hot (mouse over)
@@ -186,6 +231,17 @@ pub const Context = struct {
                 self.cursor = Vec2.init(0, 0);
             }
         }
+    }
+
+    /// Queue an overlay to be rendered at the end of the frame (for proper z-ordering)
+    pub fn deferOverlay(self: *Context, render_fn: *const fn (ctx: *Context, data: *anyopaque) void, data: *anyopaque) void {
+        self.overlay_callbacks.append(self.allocator, .{
+            .render_fn = render_fn,
+            .data = data,
+        }) catch {
+            // If we can't append, just render immediately as fallback
+            render_fn(self, data);
+        };
     }
 
     /// Advance layout cursor

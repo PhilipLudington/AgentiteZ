@@ -35,9 +35,10 @@ pub fn buttonWithId(ctx: *Context, display_text: []const u8, id: u64, rect: Rect
     // Draw button text (centered) with theme color
     const text_size: f32 = 16;
     const text_bounds = ctx.renderer.measureText(display_text, text_size);
+    const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
     const text_pos = Vec2{
         .x = rect.x + (rect.width - text_bounds.x) / 2,
-        .y = rect.y + (rect.height - text_bounds.y) / 2,
+        .y = rect.y + rect.height / 2 - baseline_offset,
     };
     ctx.renderer.drawText(display_text, text_pos, text_size, ctx.theme.button_text);
 
@@ -199,12 +200,12 @@ pub fn slider(ctx: *Context, label_text: []const u8, rect: Rect, value: f32, min
 
     // Draw label above the slider
     if (label_text.len > 0) {
-        const text_size: f32 = 12;
+        const label_size: f32 = 12;
         const label_pos = Vec2{
             .x = rect.x,
-            .y = rect.y - text_size - 4,
+            .y = rect.y - 4,  // Position 4px above slider
         };
-        ctx.renderer.drawText(label_text, label_pos, text_size, Color.black);
+        ctx.renderer.drawText(label_text, label_pos, label_size, Color.white);
     }
 
     return new_value;
@@ -283,9 +284,10 @@ pub fn textInput(ctx: *Context, label_text: []const u8, rect: Rect, buffer: []u8
 
     // Draw text content
     const text_size: f32 = 16;
+    const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
     const text_pos = Vec2{
         .x = rect.x + 5,
-        .y = rect.y + (rect.height - text_size) / 2,
+        .y = rect.y + rect.height / 2 - baseline_offset,
     };
     const text_to_display = buffer[0..buffer_len.*];
     ctx.renderer.drawText(text_to_display, text_pos, text_size, Color.black);
@@ -308,9 +310,9 @@ pub fn textInput(ctx: *Context, label_text: []const u8, rect: Rect, buffer: []u8
         const label_size: f32 = 12;
         const label_pos = Vec2{
             .x = rect.x,
-            .y = rect.y - label_size - 4,
+            .y = rect.y - 4,
         };
-        ctx.renderer.drawText(label_text, label_pos, label_size, Color.black);
+        ctx.renderer.drawText(label_text, label_pos, label_size, Color.white);
     }
 }
 
@@ -341,7 +343,23 @@ pub fn dropdown(ctx: *Context, label_text: []const u8, rect: Rect, options: []co
     const id = widgetId(label_text);
     const header_clicked = ctx.registerWidget(id, rect);
 
-    // Toggle dropdown on click
+    // Close dropdown if clicking outside when open (but not on header)
+    if (state.is_open and ctx.input.mouse_clicked and !header_clicked) {
+        const item_height: f32 = 25;
+        const list_rect = Rect{
+            .x = rect.x,
+            .y = rect.y + rect.height,
+            .width = rect.width,
+            .height = @as(f32, @floatFromInt(options.len)) * item_height,
+        };
+
+        // Check if mouse is outside both header and list
+        if (!rect.contains(ctx.input.mouse_pos) and !list_rect.contains(ctx.input.mouse_pos)) {
+            state.is_open = false;
+        }
+    }
+
+    // Toggle dropdown on header click
     if (header_clicked) {
         state.is_open = !state.is_open;
     }
@@ -356,9 +374,10 @@ pub fn dropdown(ctx: *Context, label_text: []const u8, rect: Rect, options: []co
 
     // Draw selected option text
     const text_size: f32 = 16;
+    const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
     const text_pos = Vec2{
         .x = rect.x + 5,
-        .y = rect.y + (rect.height - text_size) / 2,
+        .y = rect.y + rect.height / 2 - baseline_offset,
     };
     if (state.selected_index < options.len) {
         ctx.renderer.drawText(options[state.selected_index], text_pos, text_size, Color.black);
@@ -371,7 +390,7 @@ pub fn dropdown(ctx: *Context, label_text: []const u8, rect: Rect, options: []co
     const arrow_text = if (state.is_open) "▲" else "▼";
     ctx.renderer.drawText(arrow_text, .{ .x = arrow_x, .y = arrow_y - arrow_size / 2 }, arrow_size, Color.black);
 
-    // Draw dropdown list if open
+    // Defer dropdown list rendering if open (renders at end of frame on top)
     if (state.is_open) {
         const item_height: f32 = 25;
         const list_rect = Rect{
@@ -381,44 +400,15 @@ pub fn dropdown(ctx: *Context, label_text: []const u8, rect: Rect, options: []co
             .height = @as(f32, @floatFromInt(options.len)) * item_height,
         };
 
-        // Draw list background
-        ctx.renderer.drawRect(list_rect, Color.rgb(255, 255, 255));
-        ctx.renderer.drawRectOutline(list_rect, Color.rgb(150, 150, 150), 1.0);
-
-        // Draw each option
-        for (options, 0..) |option, i| {
-            const item_id = widgetId(option);
-            const item_rect = Rect{
-                .x = list_rect.x,
-                .y = list_rect.y + @as(f32, @floatFromInt(i)) * item_height,
-                .width = list_rect.width,
-                .height = item_height,
-            };
-
-            const item_clicked = ctx.registerWidget(item_id, item_rect);
-
-            // Select item on click
-            if (item_clicked) {
-                state.selected_index = i;
-                state.is_open = false;
-            }
-
-            // Draw item background
-            const item_bg = if (ctx.isHot(item_id))
-                Color.rgb(220, 220, 255)
-            else if (i == state.selected_index)
-                Color.rgb(240, 240, 240)
-            else
-                Color.rgb(255, 255, 255);
-            ctx.renderer.drawRect(item_rect, item_bg);
-
-            // Draw item text
-            const item_text_pos = Vec2{
-                .x = item_rect.x + 5,
-                .y = item_rect.y + (item_height - text_size) / 2,
-            };
-            ctx.renderer.drawText(option, item_text_pos, text_size, Color.black);
-        }
+        // Queue the dropdown list for deferred rendering
+        ctx.dropdown_overlays.append(ctx.allocator, .{
+            .list_rect = list_rect,
+            .options = options,
+            .selected_index = state.selected_index,
+            .text_size = text_size,
+            .item_height = item_height,
+            .state_ptr = @ptrCast(state),
+        }) catch {};
     }
 
     // Draw label above the dropdown
@@ -426,9 +416,9 @@ pub fn dropdown(ctx: *Context, label_text: []const u8, rect: Rect, options: []co
         const label_size: f32 = 12;
         const label_pos = Vec2{
             .x = rect.x,
-            .y = rect.y - label_size - 4,
+            .y = rect.y - 4,
         };
-        ctx.renderer.drawText(label_text, label_pos, label_size, Color.black);
+        ctx.renderer.drawText(label_text, label_pos, label_size, Color.white);
     }
 }
 
@@ -446,13 +436,8 @@ pub fn dropdownAuto(ctx: *Context, label_text: []const u8, width: f32, options: 
 
     dropdown(ctx, label_text, rect, options, state);
 
-    // Account for expanded height if open
-    const dropdown_height = if (state.is_open)
-        height + @as(f32, @floatFromInt(options.len)) * 25
-    else
-        height;
-
-    ctx.advanceCursor(dropdown_height + label_height, 5);
+    // Only advance cursor by the header height, dropdown list overlays
+    ctx.advanceCursor(height + label_height, 5);
 }
 
 /// Scrollable list state (needs to be stored by caller)
@@ -489,6 +474,7 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
     }
 
     const padding: f32 = 3; // Padding from edges
+    const text_padding: f32 = 5; // Extra padding for text to prevent glyph clipping
 
     // Calculate which items could be visible (for performance optimization)
     const start_index = @as(usize, @intFromFloat(@max(0, state.scroll_offset / item_height)));
@@ -496,11 +482,11 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
     const end_index = @min(items.len, start_index + max_visible);
 
     // Enable GPU scissor for proper clipping
-    // The beginScissor implementation will intersect with the viewport scissor automatically
+    // Add extra horizontal padding to prevent glyph clipping (some glyphs have negative xoff)
     const content_area = Rect{
-        .x = rect.x + padding,
+        .x = rect.x + padding - text_padding,
         .y = rect.y + padding,
-        .width = rect.width - (padding * 2),
+        .width = rect.width - (padding * 2) + (text_padding * 2),
         .height = rect.height - (padding * 2),
     };
     ctx.renderer.beginScissor(content_area);
@@ -533,9 +519,10 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
 
         // Draw item text (GPU scissor will clip it)
         const text_size: f32 = 14;
-        const text_x = item_rect.x + 5;
-        const text_y = item_rect.y + (item_height - text_size) / 2;
-        ctx.renderer.drawText(items[i], Vec2.init(text_x, text_y), text_size, Color.black);
+        const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
+        const text_x = item_rect.x + 8;  // Increased padding to prevent clipping
+        const text_y = item_rect.y + item_height / 2 - baseline_offset;
+        ctx.renderer.drawText(items[i], Vec2.init(text_x, text_y), text_size, Color.rgb(10, 10, 10));
     }
 
     // End scissor for scroll list content
@@ -632,9 +619,9 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
         const label_size: f32 = 12;
         const label_pos = Vec2{
             .x = rect.x,
-            .y = rect.y - label_size - 4,
+            .y = rect.y - 4,
         };
-        ctx.renderer.drawText(label_text, label_pos, label_size, Color.black);
+        ctx.renderer.drawText(label_text, label_pos, label_size, Color.white);
     }
 }
 
@@ -694,9 +681,10 @@ pub fn progressBar(ctx: *Context, label_text: []const u8, rect: Rect, progress: 
         const text = std.fmt.bufPrint(&text_buf, "{d}%", .{percentage}) catch "??%";
 
         const text_bounds = ctx.renderer.measureText(text, text_size);
+        const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
         const text_pos = Vec2{
             .x = rect.x + (rect.width - text_bounds.x) / 2,
-            .y = rect.y + (rect.height - text_bounds.y) / 2,
+            .y = rect.y + rect.height / 2 - baseline_offset,
         };
         ctx.renderer.drawText(text, text_pos, text_size, Color.black);
     }
@@ -706,9 +694,9 @@ pub fn progressBar(ctx: *Context, label_text: []const u8, rect: Rect, progress: 
         const label_size: f32 = 12;
         const label_pos = Vec2{
             .x = rect.x,
-            .y = rect.y - label_size - 4,
+            .y = rect.y - 4,
         };
-        ctx.renderer.drawText(label_text, label_pos, label_size, Color.black);
+        ctx.renderer.drawText(label_text, label_pos, label_size, Color.white);
     }
 }
 
@@ -864,8 +852,8 @@ pub fn checkbox(ctx: *Context, label_text: []const u8, rect: Rect, checked: *boo
     if (label_text.len > 0) {
         const text_size: f32 = 16;
         const text_x = box_rect.x + box_size + 8; // 8px gap
-        const text_bounds = ctx.renderer.measureText(label_text, text_size);
-        const text_y = rect.y + (rect.height - text_bounds.y) / 2;
+        const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
+        const text_y = rect.y + rect.height / 2 - baseline_offset;
 
         ctx.renderer.drawText(label_text, .{ .x = text_x, .y = text_y }, text_size, Color.black);
     }

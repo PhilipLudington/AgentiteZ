@@ -110,6 +110,7 @@ pub fn main() !void {
         // Track if mouse was clicked or released this frame
         var mouse_clicked = false;
         var mouse_released = false;
+        var mouse_wheel: f32 = 0;
 
         // Poll events
         while (c.SDL_PollEvent(&event)) {
@@ -138,12 +139,16 @@ pub fn main() !void {
                         mouse_released = true;
                     }
                 },
+                c.SDL_EVENT_MOUSE_WHEEL => {
+                    mouse_wheel = event.wheel.y;
+                },
                 else => {},
             }
         }
 
         input.mouse_clicked = mouse_clicked;
         input.mouse_released = mouse_released;
+        input.mouse_wheel = mouse_wheel;
 
         // Set view 0 to cover the entire window
         bgfx.setViewRect(0, 0, 0, @intCast(window_width), @intCast(window_height));

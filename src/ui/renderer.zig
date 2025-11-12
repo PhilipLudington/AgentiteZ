@@ -26,6 +26,8 @@ pub const Renderer = struct {
         drawText: *const fn (ptr: *anyopaque, text: []const u8, pos: Vec2, size: f32, color: Color) void,
         /// Measure text size
         measureText: *const fn (ptr: *anyopaque, text: []const u8, size: f32) Vec2,
+        /// Get baseline offset for vertically centering text
+        getBaselineOffset: *const fn (ptr: *anyopaque, font_size: f32) f32,
         /// Begin scissor clipping (restrict rendering to rect)
         beginScissor: *const fn (ptr: *anyopaque, rect: Rect) void,
         /// End scissor clipping (restore normal rendering)
@@ -48,6 +50,10 @@ pub const Renderer = struct {
 
     pub fn measureText(self: Renderer, text: []const u8, size: f32) Vec2 {
         return self.vtable.measureText(self.ptr, text, size);
+    }
+
+    pub fn getBaselineOffset(self: Renderer, font_size: f32) f32 {
+        return self.vtable.getBaselineOffset(self.ptr, font_size);
     }
 
     pub fn beginScissor(self: Renderer, rect: Rect) void {
@@ -88,6 +94,11 @@ pub const Renderer = struct {
                 return self.measureText(text, size);
             }
 
+            fn getBaselineOffsetImpl(p: *anyopaque, font_size: f32) f32 {
+                const self: *T = @ptrCast(@alignCast(p));
+                return self.getBaselineOffset(font_size);
+            }
+
             fn beginScissorImpl(p: *anyopaque, rect: Rect) void {
                 const self: *T = @ptrCast(@alignCast(p));
                 self.beginScissor(rect);
@@ -108,6 +119,7 @@ pub const Renderer = struct {
                 .drawRectOutline = drawRectOutlineImpl,
                 .drawText = drawTextImpl,
                 .measureText = measureTextImpl,
+                .getBaselineOffset = getBaselineOffsetImpl,
                 .beginScissor = beginScissorImpl,
                 .endScissor = endScissorImpl,
                 .isNull = isNullImpl,
@@ -148,6 +160,12 @@ pub const NullRenderer = struct {
         _ = self;
         // Simple estimation: ~10 pixels per character
         return Vec2.init(@as(f32, @floatFromInt(text.len)) * 10.0, font_size);
+    }
+
+    pub fn getBaselineOffset(self: *NullRenderer, font_size: f32) f32 {
+        _ = self;
+        // Simple approximation for null renderer
+        return font_size * 0.2;
     }
 
     pub fn beginScissor(self: *NullRenderer, rect: Rect) void {
