@@ -1,7 +1,7 @@
 const std = @import("std");
 const root = @import("../root.zig");
 const bgfx = root.bgfx;
-// const stb = root.stb_truetype; // TODO: Fix stb_truetype cImport issues
+const stb = root.stb_truetype;
 const types = @import("types.zig");
 const shaders = @import("shaders.zig");
 
@@ -51,23 +51,78 @@ fn colorToABGR(color: Color) u32 {
         (@as(u32, color.r) << 0);
 }
 
-// TODO: Re-enable FontAtlas when stb_truetype cImport issues are resolved
-// /// Font atlas for text rendering
-// const FontAtlas = struct {
-//     texture: bgfx.TextureHandle,
-//     width: u32,
-//     height: u32,
-//     char_data: [96]stb.c.stbtt_bakedchar, // ASCII 32-127
-//     font_size: f32,
-//
-//     fn init(allocator: std.mem.Allocator, font_data: []const u8, font_size: f32) !FontAtlas {
-//         ...
-//     }
-//
-//     fn deinit(self: *FontAtlas) void {
-//         bgfx.destroyTexture(self.texture);
-//     }
-// };
+/// Font atlas for text rendering
+const FontAtlas = struct {
+    texture: bgfx.TextureHandle,
+    width: u32,
+    height: u32,
+    char_data: [96]stb.c.stbtt_bakedchar, // ASCII 32-127
+    font_size: f32,
+
+    fn init(allocator: std.mem.Allocator, font_data: []const u8, font_size: f32) !FontAtlas {
+        const atlas_width: u32 = 1024;
+        const atlas_height: u32 = 1024;
+
+        // Allocate bitmap for font atlas
+        const bitmap = try allocator.alloc(u8, atlas_width * atlas_height);
+        defer allocator.free(bitmap);
+        @memset(bitmap, 0);
+
+        var char_data: [96]stb.c.stbtt_bakedchar = undefined;
+
+        // Bake font into bitmap
+        const result = stb.bakeFontBitmap(
+            font_data.ptr,
+            0,
+            font_size,
+            bitmap.ptr,
+            @intCast(atlas_width),
+            @intCast(atlas_height),
+            32, // First char (space)
+            96, // Num chars
+            &char_data,
+        );
+
+        if (result < 0) {
+            return error.FontBakeFailed;
+        }
+
+        // Convert grayscale to RGBA
+        const rgba_bitmap = try allocator.alloc(u8, atlas_width * atlas_height * 4);
+        defer allocator.free(rgba_bitmap);
+
+        for (bitmap, 0..) |gray, i| {
+            rgba_bitmap[i * 4 + 0] = 255; // R
+            rgba_bitmap[i * 4 + 1] = 255; // G
+            rgba_bitmap[i * 4 + 2] = 255; // B
+            rgba_bitmap[i * 4 + 3] = gray; // A
+        }
+
+        // Create bgfx texture
+        const texture_mem = bgfx.copy(rgba_bitmap.ptr, @intCast(rgba_bitmap.len));
+        const texture = bgfx.createTexture2D(
+            @intCast(atlas_width),
+            @intCast(atlas_height),
+            false,
+            1,
+            bgfx.TextureFormat.RGBA8,
+            0,
+            texture_mem,
+        );
+
+        return .{
+            .texture = texture,
+            .width = atlas_width,
+            .height = atlas_height,
+            .char_data = char_data,
+            .font_size = font_size,
+        };
+    }
+
+    fn deinit(self: *FontAtlas) void {
+        bgfx.destroyTexture(self.texture);
+    }
+};
 
 /// Batch for collecting colored draw calls
 const DrawBatch = struct {
@@ -174,8 +229,8 @@ pub const Renderer2DProper = struct {
     color_batch: DrawBatch,
     texture_batch: TextureBatch,
 
-    // Font atlas for text rendering (TODO: Re-enable when stb_truetype works)
-    // font_atlas: ?FontAtlas,
+    // Font atlas for text rendering
+    font_atlas: FontAtlas,
 
     // View ID for UI rendering
     view_id: bgfx.ViewId,
@@ -229,7 +284,9 @@ pub const Renderer2DProper = struct {
         );
         texture_vertex_layout.end();
 
-        // TODO: Load font atlas when stb_truetype cImport works
+        // Load font atlas
+        const font_data = @embedFile("../assets/fonts/Roboto-Regular.ttf");
+        const font_atlas = try FontAtlas.init(allocator, font_data, 24.0);
 
         return .{
             .allocator = allocator,
@@ -240,7 +297,7 @@ pub const Renderer2DProper = struct {
             .texture_vertex_layout = texture_vertex_layout,
             .color_batch = DrawBatch.init(allocator),
             .texture_batch = TextureBatch.init(allocator),
-            // .font_atlas = null,
+            .font_atlas = font_atlas,
             .view_id = 0,
         };
     }
@@ -249,9 +306,8 @@ pub const Renderer2DProper = struct {
         self.shader_programs.deinit();
         self.color_batch.deinit();
         self.texture_batch.deinit();
-        // if (self.font_atlas) |*atlas| {
-        //     atlas.deinit();
-        // }
+        var atlas = self.font_atlas;
+        atlas.deinit();
     }
 
     pub fn updateWindowSize(self: *Renderer2DProper, width: u32, height: u32) void {
@@ -336,10 +392,72 @@ pub const Renderer2DProper = struct {
         _ = bgfx.submit(self.view_id, self.shader_programs.color_program, 0, 0);
     }
 
-    /// Flush textured draw batch to GPU - TODO: Re-enable when font atlas works
+    /// Flush textured draw batch to GPU
     fn flushTextureBatch(self: *Renderer2DProper) void {
-        _ = self;
-        // TODO: Implement texture batch flushing when font atlas is working
+        if (self.texture_batch.vertices.items.len == 0) return;
+
+        // Allocate transient buffers
+        var tvb: bgfx.TransientVertexBuffer = undefined;
+        var tib: bgfx.TransientIndexBuffer = undefined;
+
+        const num_vertices: u32 = @intCast(self.texture_batch.vertices.items.len);
+        const num_indices: u32 = @intCast(self.texture_batch.indices.items.len);
+
+        if (!bgfx.allocTransientBuffers(
+            &tvb,
+            &self.texture_vertex_layout,
+            num_vertices,
+            &tib,
+            num_indices,
+            false,
+        )) {
+            return; // Not enough space
+        }
+
+        // Copy vertex data
+        const vertex_size = @sizeOf(TextureVertex);
+        const vertices_bytes = self.texture_batch.vertices.items.len * vertex_size;
+        @memcpy(
+            @as([*]u8, @ptrCast(tvb.data))[0..vertices_bytes],
+            std.mem.sliceAsBytes(self.texture_batch.vertices.items),
+        );
+
+        // Copy index data
+        const indices_bytes = self.texture_batch.indices.items.len * @sizeOf(u16);
+        @memcpy(
+            @as([*]u8, @ptrCast(tib.data))[0..indices_bytes],
+            std.mem.sliceAsBytes(self.texture_batch.indices.items),
+        );
+
+        // Set up orthographic projection
+        const proj = orthoProjection(
+            0,
+            @floatFromInt(self.window_width),
+            @floatFromInt(self.window_height),
+            0,
+            -1,
+            1,
+        );
+        bgfx.setViewTransform(self.view_id, null, &proj);
+
+        // Set vertex and index buffers
+        bgfx.setTransientVertexBuffer(0, &tvb, 0, num_vertices);
+        bgfx.setTransientIndexBuffer(&tib, 0, num_indices);
+
+        // Set texture
+        bgfx.setTexture(0, self.shader_programs.texture_sampler, self.font_atlas.texture, 0xffffffff);
+
+        // Set render state (alpha blending: src_alpha, inv_src_alpha)
+        bgfx.setState(
+            bgfx.StateFlags_WriteRgb |
+                bgfx.StateFlags_WriteA |
+                bgfx.StateFlags_BlendSrcAlpha |
+                ((bgfx.StateFlags_BlendInvSrcAlpha) << 4),
+            0,
+        );
+
+        // Submit draw call with texture shader program
+        _ = bgfx.submit(self.view_id, self.shader_programs.texture_program, 0, 0);
     }
 
     /// Draw a filled rectangle
@@ -359,14 +477,38 @@ pub const Renderer2DProper = struct {
         self.drawRect(.{ .x = rect.x + rect.width - thickness, .y = rect.y + thickness, .width = thickness, .height = rect.height - (thickness * 2) }, color);
     }
 
-    /// Draw text - TODO: Implement when font atlas works
+    /// Draw text using font atlas
     pub fn drawText(self: *Renderer2DProper, text: []const u8, pos: Vec2, size: f32, color: Color) void {
-        _ = self;
-        _ = text;
-        _ = pos;
-        _ = size;
-        _ = color;
-        // TODO: Re-enable font atlas rendering when stb_truetype cImport works
+        const scale = size / self.font_atlas.font_size;
+        var cursor_x = pos.x;
+        const cursor_y = pos.y;
+
+        for (text) |char| {
+            if (char < 32 or char >= 128) continue; // Skip non-ASCII
+
+            const char_index: usize = char - 32;
+            const char_info = &self.font_atlas.char_data[char_index];
+
+            // Calculate quad position and size
+            const x0 = cursor_x + char_info.xoff * scale;
+            const y0 = cursor_y + char_info.yoff * scale;
+            const x1 = x0 + (@as(f32, @floatFromInt(char_info.x1)) - @as(f32, @floatFromInt(char_info.x0))) * scale;
+            const y1 = y0 + (@as(f32, @floatFromInt(char_info.y1)) - @as(f32, @floatFromInt(char_info.y0))) * scale;
+
+            // Calculate UV coordinates (normalized 0-1)
+            const uv_x0 = @as(f32, @floatFromInt(char_info.x0)) / @as(f32, @floatFromInt(self.font_atlas.width));
+            const uv_y0 = @as(f32, @floatFromInt(char_info.y0)) / @as(f32, @floatFromInt(self.font_atlas.height));
+            const uv_x1 = @as(f32, @floatFromInt(char_info.x1)) / @as(f32, @floatFromInt(self.font_atlas.width));
+            const uv_y1 = @as(f32, @floatFromInt(char_info.y1)) / @as(f32, @floatFromInt(self.font_atlas.height));
+
+            // Add textured quad to batch
+            const w = x1 - x0;
+            const h = y1 - y0;
+            self.texture_batch.addQuad(x0, y0, w, h, uv_x0, uv_y0, uv_x1, uv_y1, color) catch return;
+
+            // Advance cursor
+            cursor_x += char_info.xadvance * scale;
+        }
     }
 
     /// Measure text size

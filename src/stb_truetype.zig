@@ -2,7 +2,6 @@ const std = @import("std");
 
 // stb_truetype C API bindings
 pub const c = @cImport({
-    @cDefine("STB_TRUETYPE_IMPLEMENTATION", "");
     @cInclude("stb_truetype.h");
 });
 

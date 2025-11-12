@@ -9,6 +9,9 @@ pub const ShaderPrograms = struct {
     /// Program for rendering textured primitives (text, images)
     texture_program: bgfx.ProgramHandle,
 
+    /// Texture sampler uniform for texture program
+    texture_sampler: bgfx.UniformHandle,
+
     /// Initialize shader programs by loading and compiling embedded shader binaries
     pub fn init() !ShaderPrograms {
         // Load color shaders
@@ -39,9 +42,13 @@ pub const ShaderPrograms = struct {
         // Create texture program
         const texture_program = bgfx.createProgram(vs_texture, fs_texture, true);
 
+        // Create texture sampler uniform
+        const texture_sampler = bgfx.createUniform("s_texColor", bgfx.UniformType.Sampler, 1);
+
         return ShaderPrograms{
             .color_program = color_program,
             .texture_program = texture_program,
+            .texture_sampler = texture_sampler,
         };
     }
 
@@ -49,5 +56,6 @@ pub const ShaderPrograms = struct {
     pub fn deinit(self: ShaderPrograms) void {
         bgfx.destroyProgram(self.color_program);
         bgfx.destroyProgram(self.texture_program);
+        bgfx.destroyUniform(self.texture_sampler);
     }
 };

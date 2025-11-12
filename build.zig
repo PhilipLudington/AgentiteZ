@@ -41,6 +41,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
     });
 
+    // Add stb_truetype include path to module for @cImport
+    mod.addIncludePath(b.path("external/stb"));
+
     // Here we define an executable. An executable needs to have a root module
     // which needs to expose a `main` function. While we could add a main function
     // to the module defined above, it's sometimes preferable to split business
@@ -148,8 +151,12 @@ pub fn build(b: *std.Build) void {
     exe.addIncludePath(b.path("external/bgfx/3rdparty"));
     exe.addIncludePath(b.path("external/bgfx/3rdparty/khronos"));
 
-    // Add stb_truetype include path
+    // Add stb_truetype include path and implementation
     exe.addIncludePath(b.path("external/stb"));
+    exe.addCSourceFile(.{
+        .file = b.path("src/stb_truetype_impl.c"),
+        .flags = &.{},
+    });
 
     // This declares intent for the executable to be installed into the
     // install prefix when running `zig build` (i.e. when executing the default
