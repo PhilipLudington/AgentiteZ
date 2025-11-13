@@ -491,12 +491,12 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
     const end_index = @min(items.len, start_index + max_visible);
 
     // Enable GPU scissor for proper clipping
-    // Use wider left margin to prevent glyph clipping from negative bearing
-    const scissor_left_padding: f32 = 20; // Extra left padding for glyphs
+    // Extend scissor left to accommodate glyphs with negative x-bearing
+    const scissor_left_extension: f32 = 5; // Allow for negative glyph bearings
     const content_area = Rect{
-        .x = rect.x - scissor_left_padding, // Extend left to avoid clipping glyphs with negative bearing
+        .x = rect.x + padding - scissor_left_extension,
         .y = rect.y + padding,
-        .width = rect.width + scissor_left_padding + padding, // Width from extended left to right edge
+        .width = rect.width - (padding * 2) + scissor_left_extension, // Correctly sized width
         .height = rect.height - (padding * 2),
     };
     ctx.renderer.beginScissor(content_area);
@@ -530,7 +530,7 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
         // Draw item text (GPU scissor will clip it)
         const text_size: f32 = 14;
         const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
-        const text_x = item_rect.x + 18;  // Extra padding to prevent glyphs with negative xoff/bearing from clipping
+        const text_x = item_rect.x + 5;  // Small padding from left edge
         const text_y = item_rect.y + item_height / 2 - baseline_offset;
         ctx.renderer.drawText(items[i], Vec2.init(text_x, text_y), text_size, Color.rgb(10, 10, 10));
     }
