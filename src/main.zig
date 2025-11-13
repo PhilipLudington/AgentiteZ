@@ -71,16 +71,30 @@ pub fn main() !void {
     var window_height: c_int = 0;
     _ = c.SDL_GetWindowSize(window, &window_width, &window_height);
 
+    // Get DPI scale from SDL3
+    const display_id = c.SDL_GetDisplayForWindow(window);
+    const content_scale = c.SDL_GetDisplayContentScale(display_id);
+    const dpi_scale = if (content_scale > 0) content_scale else 1.0;
+
+    std.debug.print("Window: {}x{}, DPI Scale: {d:.2}x\n", .{ window_width, window_height, dpi_scale });
+
     // Initialize UI system
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
+    // Create DPI-aware UI context
+    const window_info = ui.WindowInfo{
+        .width = window_width,
+        .height = window_height,
+        .dpi_scale = dpi_scale,
+    };
+
     var renderer_2d = try ui.Renderer2DProper.init(allocator, @intCast(window_width), @intCast(window_height));
     defer renderer_2d.deinit();
 
     const renderer = ui.Renderer.init(&renderer_2d);
-    var ctx = ui.Context.init(allocator, renderer);
+    var ctx = ui.Context.initWithDpi(allocator, renderer, window_info);
     defer ctx.deinit();
 
     // Demo state

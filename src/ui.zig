@@ -18,6 +18,11 @@ pub const InputState = types.InputState;
 pub const MouseButton = types.MouseButton;
 pub const Key = types.Key;
 
+// Re-export DPI types
+pub const WindowInfo = dpi.WindowInfo;
+pub const DpiConfig = dpi.DpiConfig;
+pub const RenderScale = dpi.RenderScale;
+
 // Re-export UI components
 pub const Context = context.Context;
 pub const Renderer = renderer.Renderer;

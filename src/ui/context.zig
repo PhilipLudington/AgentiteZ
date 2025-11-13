@@ -78,8 +78,26 @@ pub const Context = struct {
     dropdown_overlays: std.ArrayList(DropdownOverlay),
 
     pub fn init(allocator: std.mem.Allocator, renderer: Renderer) Context {
-        // Use mock DPI config - TODO: pass window info when available
+        // Use mock DPI config - for tests and simple cases
         const dpi_config = DpiConfig.initMock();
+
+        return .{
+            .allocator = allocator,
+            .renderer = renderer,
+            .input = InputState.init(),
+            .widget_states = std.AutoHashMap(WidgetId, WidgetState).init(allocator),
+            .cursor = Vec2.init(0, 0),
+            .layout_stack = .{},
+            .dpi_config = dpi_config,
+            .theme = Theme.imperial(), // Default to Imperial salvaged tech theme
+            .overlay_callbacks = .{},
+            .dropdown_overlays = .{},
+        };
+    }
+
+    /// Initialize context with DPI-aware configuration
+    pub fn initWithDpi(allocator: std.mem.Allocator, renderer: Renderer, window_info: dpi_mod.WindowInfo) Context {
+        const dpi_config = DpiConfig.init(window_info);
 
         return .{
             .allocator = allocator,

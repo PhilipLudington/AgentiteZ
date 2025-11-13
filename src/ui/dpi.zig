@@ -330,3 +330,79 @@ test "RenderScale with letterboxing" {
     try std.testing.expectApproxEqAbs(@as(f32, 960), center_virtual.x, 1.0);
     try std.testing.expectApproxEqAbs(@as(f32, 540), center_virtual.y, 1.0);
 }
+
+test "DpiConfig initialization and scaling" {
+    const window_info = WindowInfo{
+        .width = 3840,
+        .height = 2160,
+        .dpi_scale = 2.0,
+    };
+
+    const dpi_config = DpiConfig.init(window_info);
+
+    // Test that high DPI is detected
+    try std.testing.expect(dpi_config.high_dpi_enabled);
+
+    // Test coordinate conversion
+    const logical = Vec2.init(100, 100);
+    const physical = dpi_config.toPhysical(logical);
+
+    // Should scale by render_scale.scale (2.0 for 4K->1080p)
+    try std.testing.expectApproxEqAbs(@as(f32, 200), physical.x, 1.0);
+    try std.testing.expectApproxEqAbs(@as(f32, 200), physical.y, 1.0);
+
+    // Test reverse conversion
+    const back_to_logical = dpi_config.toLogical(physical);
+    try std.testing.expectApproxEqAbs(logical.x, back_to_logical.x, 0.1);
+    try std.testing.expectApproxEqAbs(logical.y, back_to_logical.y, 0.1);
+}
+
+test "DpiConfig scaling dimensions" {
+    const window_info = WindowInfo{
+        .width = 1920,
+        .height = 1080,
+        .dpi_scale = 1.0,
+    };
+
+    const dpi_config = DpiConfig.init(window_info);
+
+    // Test dimension scaling
+    const logical_size: f32 = 100.0;
+    const physical_size = dpi_config.scaleToPhysical(logical_size);
+
+    // At 1:1 scale, should be identical
+    try std.testing.expectEqual(@as(f32, 100.0), physical_size);
+
+    // Test reverse
+    const back_to_logical = dpi_config.scaleToLogical(physical_size);
+    try std.testing.expectEqual(@as(f32, 100.0), back_to_logical);
+}
+
+test "DpiConfig update detection" {
+    var dpi_config = DpiConfig.init(WindowInfo{
+        .width = 1920,
+        .height = 1080,
+        .dpi_scale = 1.0,
+    });
+
+    // Same window info - should not need update
+    const same_info = WindowInfo{
+        .width = 1920,
+        .height = 1080,
+        .dpi_scale = 1.0,
+    };
+    try std.testing.expect(!dpi_config.needsUpdate(same_info));
+
+    // Different size - should need update
+    const different_info = WindowInfo{
+        .width = 2560,
+        .height = 1440,
+        .dpi_scale = 1.0,
+    };
+    try std.testing.expect(dpi_config.needsUpdate(different_info));
+
+    // Update and verify
+    const updated = dpi_config.updateIfNeeded(different_info);
+    try std.testing.expect(updated);
+    try std.testing.expect(!dpi_config.needsUpdate(different_info));
+}

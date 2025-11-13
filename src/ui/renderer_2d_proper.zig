@@ -712,3 +712,359 @@ fn colorToBgfxAttr(color: Color) u8 {
         return 0x07;
     }
 }
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+test "renderer - colorToABGR conversion" {
+    const red = Color{ .r = 255, .g = 0, .b = 0, .a = 255 };
+    const green = Color{ .r = 0, .g = 255, .b = 0, .a = 255 };
+    const blue = Color{ .r = 0, .g = 0, .b = 255, .a = 255 };
+    const white = Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
+    const transparent = Color{ .r = 128, .g = 128, .b = 128, .a = 0 };
+
+    // Test ABGR format (alpha in high byte, red in low byte)
+    try std.testing.expectEqual(@as(u32, 0xFF0000FF), colorToABGR(red));
+    try std.testing.expectEqual(@as(u32, 0xFF00FF00), colorToABGR(green));
+    try std.testing.expectEqual(@as(u32, 0xFFFF0000), colorToABGR(blue));
+    try std.testing.expectEqual(@as(u32, 0xFFFFFFFF), colorToABGR(white));
+    try std.testing.expectEqual(@as(u32, 0x00808080), colorToABGR(transparent));
+}
+
+test "renderer - ColorVertex initialization" {
+    const color = Color{ .r = 100, .g = 150, .b = 200, .a = 255 };
+    const vertex = ColorVertex.init(10.5, 20.75, color);
+
+    try std.testing.expectEqual(@as(f32, 10.5), vertex.x);
+    try std.testing.expectEqual(@as(f32, 20.75), vertex.y);
+    try std.testing.expectEqual(colorToABGR(color), vertex.abgr);
+}
+
+test "renderer - TextureVertex initialization" {
+    const color = Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
+    const vertex = TextureVertex.init(5.0, 10.0, 0.25, 0.75, color);
+
+    try std.testing.expectEqual(@as(f32, 5.0), vertex.x);
+    try std.testing.expectEqual(@as(f32, 10.0), vertex.y);
+    try std.testing.expectEqual(@as(f32, 0.25), vertex.u);
+    try std.testing.expectEqual(@as(f32, 0.75), vertex.v);
+    try std.testing.expectEqual(colorToABGR(color), vertex.abgr);
+}
+
+test "renderer - DrawBatch initialization and cleanup" {
+    var batch = DrawBatch.init(std.testing.allocator);
+    defer batch.deinit();
+
+    try std.testing.expectEqual(@as(usize, 0), batch.vertices.items.len);
+    try std.testing.expectEqual(@as(usize, 0), batch.indices.items.len);
+}
+
+test "renderer - DrawBatch addQuad" {
+    var batch = DrawBatch.init(std.testing.allocator);
+    defer batch.deinit();
+
+    const color = Color{ .r = 255, .g = 0, .b = 0, .a = 255 };
+    try batch.addQuad(10.0, 20.0, 100.0, 50.0, color);
+
+    // Should add 4 vertices
+    try std.testing.expectEqual(@as(usize, 4), batch.vertices.items.len);
+    // Should add 6 indices (2 triangles)
+    try std.testing.expectEqual(@as(usize, 6), batch.indices.items.len);
+
+    // Verify vertex positions
+    try std.testing.expectEqual(@as(f32, 10.0), batch.vertices.items[0].x);
+    try std.testing.expectEqual(@as(f32, 20.0), batch.vertices.items[0].y);
+
+    try std.testing.expectEqual(@as(f32, 110.0), batch.vertices.items[1].x);
+    try std.testing.expectEqual(@as(f32, 20.0), batch.vertices.items[1].y);
+
+    try std.testing.expectEqual(@as(f32, 110.0), batch.vertices.items[2].x);
+    try std.testing.expectEqual(@as(f32, 70.0), batch.vertices.items[2].y);
+
+    try std.testing.expectEqual(@as(f32, 10.0), batch.vertices.items[3].x);
+    try std.testing.expectEqual(@as(f32, 70.0), batch.vertices.items[3].y);
+
+    // Verify indices form two triangles
+    try std.testing.expectEqual(@as(u16, 0), batch.indices.items[0]);
+    try std.testing.expectEqual(@as(u16, 1), batch.indices.items[1]);
+    try std.testing.expectEqual(@as(u16, 2), batch.indices.items[2]);
+
+    try std.testing.expectEqual(@as(u16, 0), batch.indices.items[3]);
+    try std.testing.expectEqual(@as(u16, 2), batch.indices.items[4]);
+    try std.testing.expectEqual(@as(u16, 3), batch.indices.items[5]);
+}
+
+test "renderer - DrawBatch multiple quads" {
+    var batch = DrawBatch.init(std.testing.allocator);
+    defer batch.deinit();
+
+    const red = Color{ .r = 255, .g = 0, .b = 0, .a = 255 };
+    const green = Color{ .r = 0, .g = 255, .b = 0, .a = 255 };
+
+    try batch.addQuad(0.0, 0.0, 10.0, 10.0, red);
+    try batch.addQuad(20.0, 20.0, 10.0, 10.0, green);
+
+    // Should have 8 vertices (4 per quad)
+    try std.testing.expectEqual(@as(usize, 8), batch.vertices.items.len);
+    // Should have 12 indices (6 per quad)
+    try std.testing.expectEqual(@as(usize, 12), batch.indices.items.len);
+
+    // Second quad's indices should reference vertices 4-7
+    try std.testing.expectEqual(@as(u16, 4), batch.indices.items[6]);
+    try std.testing.expectEqual(@as(u16, 5), batch.indices.items[7]);
+    try std.testing.expectEqual(@as(u16, 6), batch.indices.items[8]);
+}
+
+test "renderer - DrawBatch clear" {
+    var batch = DrawBatch.init(std.testing.allocator);
+    defer batch.deinit();
+
+    const color = Color{ .r = 255, .g = 0, .b = 0, .a = 255 };
+    try batch.addQuad(0.0, 0.0, 10.0, 10.0, color);
+
+    try std.testing.expectEqual(@as(usize, 4), batch.vertices.items.len);
+    try std.testing.expectEqual(@as(usize, 6), batch.indices.items.len);
+
+    batch.clear();
+
+    try std.testing.expectEqual(@as(usize, 0), batch.vertices.items.len);
+    try std.testing.expectEqual(@as(usize, 0), batch.indices.items.len);
+}
+
+test "renderer - TextureBatch initialization and cleanup" {
+    var batch = TextureBatch.init(std.testing.allocator);
+    defer batch.deinit();
+
+    try std.testing.expectEqual(@as(usize, 0), batch.vertices.items.len);
+    try std.testing.expectEqual(@as(usize, 0), batch.indices.items.len);
+}
+
+test "renderer - TextureBatch addQuad" {
+    var batch = TextureBatch.init(std.testing.allocator);
+    defer batch.deinit();
+
+    const color = Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
+    try batch.addQuad(10.0, 20.0, 100.0, 50.0, 0.0, 0.0, 1.0, 1.0, color);
+
+    // Should add 4 vertices
+    try std.testing.expectEqual(@as(usize, 4), batch.vertices.items.len);
+    // Should add 6 indices (2 triangles)
+    try std.testing.expectEqual(@as(usize, 6), batch.indices.items.len);
+
+    // Verify UV coordinates
+    try std.testing.expectEqual(@as(f32, 0.0), batch.vertices.items[0].u);
+    try std.testing.expectEqual(@as(f32, 0.0), batch.vertices.items[0].v);
+
+    try std.testing.expectEqual(@as(f32, 1.0), batch.vertices.items[1].u);
+    try std.testing.expectEqual(@as(f32, 0.0), batch.vertices.items[1].v);
+
+    try std.testing.expectEqual(@as(f32, 1.0), batch.vertices.items[2].u);
+    try std.testing.expectEqual(@as(f32, 1.0), batch.vertices.items[2].v);
+
+    try std.testing.expectEqual(@as(f32, 0.0), batch.vertices.items[3].u);
+    try std.testing.expectEqual(@as(f32, 1.0), batch.vertices.items[3].v);
+}
+
+test "renderer - TextureBatch clear" {
+    var batch = TextureBatch.init(std.testing.allocator);
+    defer batch.deinit();
+
+    const color = Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
+    try batch.addQuad(0.0, 0.0, 10.0, 10.0, 0.0, 0.0, 1.0, 1.0, color);
+
+    batch.clear();
+
+    try std.testing.expectEqual(@as(usize, 0), batch.vertices.items.len);
+    try std.testing.expectEqual(@as(usize, 0), batch.indices.items.len);
+}
+
+test "renderer - orthoProjection matrix" {
+    const proj = orthoProjection(0, 1920, 1080, 0, -1, 1);
+
+    // Test that it's a valid 4x4 matrix
+    try std.testing.expectEqual(@as(usize, 16), proj.len);
+
+    // Test key values for orthographic projection
+    // Scale X: 2 / (right - left) = 2 / 1920
+    try std.testing.expectApproxEqRel(@as(f32, 2.0 / 1920.0), proj[0], 0.0001);
+
+    // Scale Y: 2 / (top - bottom) = 2 / -1080
+    try std.testing.expectApproxEqRel(@as(f32, 2.0 / -1080.0), proj[5], 0.0001);
+
+    // Scale Z: -2 / (far - near) = -2 / 2
+    try std.testing.expectApproxEqRel(@as(f32, -1.0), proj[10], 0.0001);
+
+    // Translation X: -(right + left) / (right - left) = -1920 / 1920 = -1
+    try std.testing.expectApproxEqRel(@as(f32, -1.0), proj[12], 0.0001);
+
+    // Translation Y: -(top + bottom) / (top - bottom) = -1080 / -1080 = 1
+    try std.testing.expectApproxEqRel(@as(f32, 1.0), proj[13], 0.0001);
+
+    // W component should be 1
+    try std.testing.expectEqual(@as(f32, 1.0), proj[15]);
+}
+
+test "renderer - colorToBgfxAttr" {
+    const red = Color{ .r = 255, .g = 0, .b = 0, .a = 255 };
+    const green = Color{ .r = 0, .g = 255, .b = 0, .a = 255 };
+    const blue = Color{ .r = 0, .g = 0, .b = 255, .a = 255 };
+    const white = Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
+    const black = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
+
+    // Test color to ANSI attribute conversion
+    try std.testing.expectEqual(@as(u8, 0x0C), colorToBgfxAttr(red));    // Bright red
+    try std.testing.expectEqual(@as(u8, 0x0A), colorToBgfxAttr(green));  // Bright green
+    try std.testing.expectEqual(@as(u8, 0x09), colorToBgfxAttr(blue));   // Bright blue
+    try std.testing.expectEqual(@as(u8, 0x0F), colorToBgfxAttr(white));  // Bright white
+    try std.testing.expectEqual(@as(u8, 0x00), colorToBgfxAttr(black));  // Black
+}
+
+test "font atlas - initialization" {
+    // Note: This test requires bgfx to be initialized, so we test the low-level
+    // stb_truetype functionality instead of full FontAtlas.init()
+    const font_data = @embedFile("../assets/fonts/Roboto-Regular.ttf");
+
+    var font_info: stb.FontInfo = undefined;
+    const result = stb.initFont(&font_info, font_data.ptr, 0);
+
+    try std.testing.expect(result != 0); // Should succeed
+
+    // Verify we can get font metrics
+    var ascent: c_int = undefined;
+    var descent: c_int = undefined;
+    var line_gap: c_int = undefined;
+    stb.getFontVMetrics(&font_info, &ascent, &descent, &line_gap);
+
+    // Roboto should have reasonable metrics
+    try std.testing.expect(ascent > 0);
+    try std.testing.expect(descent < 0); // Descent is typically negative
+    try std.testing.expect(line_gap >= 0);
+}
+
+test "font atlas - scale calculation" {
+    const font_data = @embedFile("../assets/fonts/Roboto-Regular.ttf");
+
+    var font_info: stb.FontInfo = undefined;
+    _ = stb.initFont(&font_info, font_data.ptr, 0);
+
+    // Test scale for various pixel heights
+    const scale_24 = stb.scaleForPixelHeight(&font_info, 24.0);
+    const scale_48 = stb.scaleForPixelHeight(&font_info, 48.0);
+
+    // Scale should be positive
+    try std.testing.expect(scale_24 > 0);
+    try std.testing.expect(scale_48 > 0);
+
+    // 48px should have roughly 2x the scale of 24px
+    const ratio = scale_48 / scale_24;
+    try std.testing.expectApproxEqRel(@as(f32, 2.0), ratio, 0.01);
+}
+
+test "font atlas - glyph metrics" {
+    const font_data = @embedFile("../assets/fonts/Roboto-Regular.ttf");
+
+    var font_info: stb.FontInfo = undefined;
+    _ = stb.initFont(&font_info, font_data.ptr, 0);
+
+    // Test getting metrics for 'A' character
+    const codepoint: c_int = 'A';
+    var advance: c_int = undefined;
+    var left_bearing: c_int = undefined;
+    stb.getCodepointHMetrics(&font_info, codepoint, &advance, &left_bearing);
+
+    // 'A' should have positive advance width
+    try std.testing.expect(advance > 0);
+}
+
+test "font atlas - character bounding box" {
+    const font_data = @embedFile("../assets/fonts/Roboto-Regular.ttf");
+
+    var font_info: stb.FontInfo = undefined;
+    _ = stb.initFont(&font_info, font_data.ptr, 0);
+
+    // Test bounding box for 'M' (typically a wide character)
+    var x0: c_int = undefined;
+    var y0: c_int = undefined;
+    var x1: c_int = undefined;
+    var y1: c_int = undefined;
+    _ = stb.getCodepointBox(&font_info, 'M', &x0, &y0, &x1, &y1);
+
+    // Bounding box should have width and height
+    const width = x1 - x0;
+    const height = y1 - y0;
+
+    try std.testing.expect(width > 0);
+    try std.testing.expect(height > 0);
+
+    // 'M' should be wider than it is tall (typically)
+    try std.testing.expect(width > height / 2);
+}
+
+test "font atlas - ASCII coverage" {
+    const font_data = @embedFile("../assets/fonts/Roboto-Regular.ttf");
+
+    var font_info: stb.FontInfo = undefined;
+    _ = stb.initFont(&font_info, font_data.ptr, 0);
+
+    // Test that we can get glyph indices for ASCII printable characters (32-126)
+    var char: u8 = 32;
+    while (char < 127) : (char += 1) {
+        const glyph_index = stb.findGlyphIndex(&font_info, char);
+        // Roboto should have all ASCII characters
+        try std.testing.expect(glyph_index > 0);
+    }
+}
+
+test "font atlas - kerning" {
+    const font_data = @embedFile("../assets/fonts/Roboto-Regular.ttf");
+
+    var font_info: stb.FontInfo = undefined;
+    _ = stb.initFont(&font_info, font_data.ptr, 0);
+
+    // Test kerning between common pairs
+    // Note: Not all fonts have kerning data, so we just test that the function works
+    const kern_AV = stb.getCodepointKernAdvance(&font_info, 'A', 'V');
+    const kern_AA = stb.getCodepointKernAdvance(&font_info, 'A', 'A');
+
+    // These are valid results (can be 0 if no kerning)
+    _ = kern_AV;
+    _ = kern_AA;
+    // Just verify the calls don't crash
+}
+
+test "font atlas - metrics consistency" {
+    const font_data = @embedFile("../assets/fonts/Roboto-Regular.ttf");
+
+    var font_info: stb.FontInfo = undefined;
+    _ = stb.initFont(&font_info, font_data.ptr, 0);
+
+    // Get vertical metrics
+    var ascent: c_int = undefined;
+    var descent: c_int = undefined;
+    var line_gap: c_int = undefined;
+    stb.getFontVMetrics(&font_info, &ascent, &descent, &line_gap);
+
+    // Total line height should be ascent - descent + line_gap
+    const total_height = ascent - descent + line_gap;
+
+    // Should be positive and reasonable
+    try std.testing.expect(total_height > 0);
+    try std.testing.expect(total_height < 10000); // Sanity check
+}
+
+test "font atlas - baked char data structure" {
+    // Verify the stbtt_bakedchar structure is properly sized
+    const char_data_size = @sizeOf(stb.c.stbtt_bakedchar);
+
+    // Should be non-zero and reasonable
+    try std.testing.expect(char_data_size > 0);
+    try std.testing.expect(char_data_size < 1000); // Sanity check
+
+    // Create an array of baked chars (as used in FontAtlas)
+    var char_data: [96]stb.c.stbtt_bakedchar = undefined;
+    @memset(std.mem.asBytes(&char_data), 0);
+
+    // Array should have correct size
+    try std.testing.expectEqual(@as(usize, 96), char_data.len);
+}
