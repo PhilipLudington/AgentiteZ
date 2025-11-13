@@ -6,6 +6,7 @@ const ui = EtherMud.ui;
 const ecs = EtherMud.ecs;
 const platform = EtherMud.platform;
 const config = EtherMud.config;
+const renderer = EtherMud.renderer;
 const c = sdl.c;
 
 // ECS demo components
@@ -107,8 +108,8 @@ pub fn main() !void {
     var renderer_2d = try ui.Renderer2DProper.init(allocator, @intCast(window_width), @intCast(window_height));
     defer renderer_2d.deinit();
 
-    const renderer = ui.Renderer.init(&renderer_2d);
-    var ctx = ui.Context.initWithDpi(allocator, renderer, window_info);
+    const ui_renderer = ui.Renderer.init(&renderer_2d);
+    var ctx = ui.Context.initWithDpi(allocator, ui_renderer, window_info);
     defer ctx.deinit();
 
     // Demo state
@@ -184,6 +185,17 @@ pub fn main() !void {
     }
 
     std.debug.print("=== Configuration Loading Complete ===\n\n", .{});
+
+    // === Load Font Atlas ===
+    std.debug.print("=== Loading Font Atlas ===\n", .{});
+    var font_atlas = try renderer.FontAtlas.init(
+        allocator,
+        "external/bgfx/examples/runtime/font/roboto-regular.ttf",
+        24.0, // font size
+        false // flip_uv
+    );
+    defer font_atlas.deinit();
+    std.debug.print("=== Font Atlas Ready ===\n\n", .{});
 
     // Initialize input state
     var input_state = platform.InputState.init(allocator);
@@ -276,7 +288,7 @@ pub fn main() !void {
 
         // Draw title
         ui.label(&ctx, "EtherMud Engine Demo", .{ .x = 20, .y = 20 }, 24, ui.Color.white);
-        ui.label(&ctx, "UI Widgets + ECS + Layout System + Virtual Resolution", .{ .x = 20, .y = 50 }, 14, ui.Color.gray);
+        ui.label(&ctx, "UI Widgets + ECS + Layout + Font Atlas + Save/Load + Config", .{ .x = 20, .y = 50 }, 14, ui.Color.gray);
 
         // Set cursor for auto-layout
         ctx.cursor = .{ .x = 20, .y = 90 };
@@ -620,6 +632,75 @@ pub fn main() !void {
         ctx.cursor.y += 15;
         ui.label(&ctx, "Green = Down (held)",
             .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 10, ui.Color.init(100, 255, 100, 255));
+
+        ui.endPanel(&ctx);
+
+        // === NEW: Font Atlas Demo ===
+        const font_panel_rect = ui.Rect.init(800, 690, 400, 230);
+        try ui.beginPanel(&ctx, "Font Atlas (NEW!)", font_panel_rect, ui.Color.panel_bg);
+
+        ctx.cursor.y += 5;  // Add spacing after panel header
+
+        // Atlas info
+        var atlas_buf1: [128]u8 = undefined;
+        const atlas_line1 = std.fmt.bufPrint(&atlas_buf1,
+            "Atlas: {d}x{d} px | Font: {d:.0}px",
+            .{ font_atlas.atlas_width, font_atlas.atlas_height, font_atlas.font_size }
+        ) catch "Atlas Info";
+        ui.label(&ctx, atlas_line1, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.white);
+        ctx.cursor.y += 20;
+
+        var atlas_buf2: [128]u8 = undefined;
+        const atlas_line2 = std.fmt.bufPrint(&atlas_buf2,
+            "Line Height: {d:.1}px | 256 glyphs (16x16)",
+            .{ font_atlas.line_height }
+        ) catch "Atlas Info";
+        ui.label(&ctx, atlas_line2, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.gray);
+        ctx.cursor.y += 25;
+
+        // Text measurement examples
+        ui.label(&ctx, "Fast Text Measurement:", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.white);
+        ctx.cursor.y += 20;
+
+        const test_text1 = "Hello, World!";
+        const width1 = font_atlas.measureText(test_text1);
+        var measure_buf1: [128]u8 = undefined;
+        const measure_line1 = std.fmt.bufPrint(&measure_buf1,
+            "\"{s}\" = {d:.1}px",
+            .{ test_text1, width1 }
+        ) catch "Measure";
+        ui.label(&ctx, measure_line1, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 11, ui.Color.init(150, 200, 255, 255));
+        ctx.cursor.y += 18;
+
+        const test_text2 = "EtherMud Engine";
+        const width2 = font_atlas.measureText(test_text2);
+        var measure_buf2: [128]u8 = undefined;
+        const measure_line2 = std.fmt.bufPrint(&measure_buf2,
+            "\"{s}\" = {d:.1}px",
+            .{ test_text2, width2 }
+        ) catch "Measure";
+        ui.label(&ctx, measure_line2, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 11, ui.Color.init(150, 200, 255, 255));
+        ctx.cursor.y += 22;
+
+        // Ellipsis truncation demo
+        ui.label(&ctx, "Ellipsis Truncation (max 180px):", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.white);
+        ctx.cursor.y += 20;
+
+        const long_text = "This is a very long text that will be truncated";
+        const max_width: f32 = 180.0;
+        const truncation_result = font_atlas.measureTextWithEllipsis(long_text, max_width);
+        var truncate_buf: [128]u8 = undefined;
+        const truncate_line = if (truncation_result.truncated_len < long_text.len)
+            std.fmt.bufPrint(&truncate_buf,
+                "\"{s}...\" ({d:.1}px)",
+                .{ long_text[0..truncation_result.truncated_len], truncation_result.width }
+            ) catch "Truncated"
+        else
+            std.fmt.bufPrint(&truncate_buf,
+                "\"{s}\" (fits!)",
+                .{ long_text }
+            ) catch "Not Truncated";
+        ui.label(&ctx, truncate_line, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 11, ui.Color.init(255, 200, 100, 255));
 
         ui.endPanel(&ctx);
 

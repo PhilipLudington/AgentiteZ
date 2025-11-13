@@ -423,6 +423,262 @@ Available in `@import("EtherMud").data.toml`:
 - `parseKeyValue()` - TOML line parsing
 - `removeInlineComment()` - Comment stripping
 
+### Save/Load System
+
+Game state persistence with TOML serialization (`src/save_load.zig`):
+
+**Features:**
+- **GameState struct** - Complete MUD game state representation
+- **Human-readable format** - TOML files for easy debugging and manual editing
+- **Selective persistence** - Only saves modified state (rooms, NPCs, items)
+- **Player state** - Health, mana, level, experience, gold, inventory
+- **World state** - Modified rooms, NPC positions/health, dropped items
+- **Automatic directory creation** - Creates `saves/` directory automatically
+
+**Usage Pattern:**
+```zig
+const save_load = @import("EtherMud").save_load;
+
+// Create game state
+var state = save_load.GameState.init(allocator);
+defer state.deinit();
+
+// Set player state
+state.player = save_load.PlayerState{
+    .name = try allocator.dupe(u8, "Hero"),
+    .health = 85.0,
+    .max_health = 100.0,
+    .mana = 40.0,
+    .max_mana = 50.0,
+    .experience = 1500,
+    .level = 5,
+    .gold = 250,
+};
+
+// Set current room
+state.current_room_id = try allocator.dupe(u8, "tavern");
+state.current_tick = 1000;
+state.timestamp = std.time.timestamp();
+
+// Add items to inventory
+try state.inventory.append(try allocator.dupe(u8, "rusty_sword"));
+try state.inventory.append(try allocator.dupe(u8, "health_potion"));
+
+// Mark a room as visited with items removed
+var room = save_load.RoomState.init(allocator);
+room.room_id = try allocator.dupe(u8, "cave");
+room.visited = true;
+try room.items_removed.append(try allocator.dupe(u8, "treasure_chest"));
+try room.npcs_defeated.append(try allocator.dupe(u8, "bandit"));
+const room_key = try allocator.dupe(u8, "cave");
+try state.modified_rooms.put(room_key, room);
+
+// Track modified NPC state
+const npc = save_load.NPCState{
+    .npc_id = try allocator.dupe(u8, "merchant"),
+    .current_room_id = try allocator.dupe(u8, "market"),
+    .health = 100.0,
+    .defeated = false,
+    .dialogue_state = 1,
+};
+const npc_key = try allocator.dupe(u8, "merchant");
+try state.modified_npcs.put(npc_key, npc);
+
+// Track dropped items
+try state.dropped_items.append(save_load.DroppedItem{
+    .item_id = try allocator.dupe(u8, "shield"),
+    .room_id = try allocator.dupe(u8, "armory"),
+});
+
+// Save game to file (creates saves/ directory automatically)
+try save_load.saveGame(&state, "savegame.toml");
+
+// Load game from file
+var loaded_state = try save_load.loadGame(allocator, "savegame.toml");
+defer loaded_state.deinit();
+
+// Access loaded data
+std.debug.print("Player: {s} (Level {d})\n", .{loaded_state.player.name, loaded_state.player.level});
+std.debug.print("Health: {d:.1}/{d:.1}\n", .{loaded_state.player.health, loaded_state.player.max_health});
+std.debug.print("Current room: {s}\n", .{loaded_state.current_room_id});
+```
+
+**Data Structures:**
+- `GameState` - Complete game state with metadata, player, world state
+- `PlayerState` - name, health, max_health, mana, max_mana, experience, level, gold
+- `RoomState` - room_id, visited, items_removed[], npcs_defeated[]
+- `NPCState` - npc_id, current_room_id, health, defeated, dialogue_state
+- `DroppedItem` - item_id, room_id
+
+**Save File Format:**
+```toml
+# EtherMud Save Game
+# Auto-generated - manual edits may be lost
+
+[game]
+version = "1.0"
+current_tick = 1000
+timestamp = 1234567890
+current_room_id = "tavern"
+
+[player]
+name = "Hero"
+health = 85.00
+max_health = 100.00
+mana = 40.00
+max_mana = 50.00
+experience = 1500
+level = 5
+gold = 250
+
+[inventory]
+items = ["rusty_sword", "health_potion"]
+
+[[room]]
+id = "cave"
+visited = true
+items_removed = ["treasure_chest"]
+npcs_defeated = ["bandit"]
+
+[[npc]]
+id = "merchant"
+current_room_id = "market"
+health = 100.00
+defeated = false
+dialogue_state = 1
+
+[[dropped_item]]
+item_id = "shield"
+room_id = "armory"
+```
+
+**Key Features:**
+- **Saves directory** - All saves stored in `saves/` subdirectory
+- **Selective state** - Only modified rooms/NPCs are saved (efficiency)
+- **Array support** - Inventory, items_removed, npcs_defeated stored as arrays
+- **Null handling** - Proper optional field support
+- **Memory management** - All strings properly allocated/freed
+- **Error handling** - Comprehensive error propagation
+
+**Tests:**
+- 8 comprehensive tests covering all data structures
+- Test save/load round-trip for all state types
+- Memory leak detection via std.testing.allocator
+- All tests pass successfully
+
+### Font Atlas System
+
+Optimized font rendering with pre-baked glyph atlas (`src/renderer/font_atlas.zig`):
+
+**Features:**
+- **Pre-baked 256 ASCII glyphs** - All glyphs rendered to texture at load time
+- **Fast text measurement** - No stb_truetype calls during rendering
+- **Proper glyph metrics** - UV coords, offsets, advances for perfect positioning
+- **16x16 atlas grid** - Efficient packing of 256 characters
+- **RGBA8 format** - Metal-compatible texture format (glyph in alpha channel)
+- **Text truncation** - Ellipsis support for overflow detection
+
+**Usage Pattern:**
+```zig
+const renderer = @import("EtherMud").renderer;
+
+// Load font and bake atlas (do once at startup)
+var font_atlas = try renderer.FontAtlas.init(
+    allocator,
+    "external/bgfx/examples/runtime/font/roboto-regular.ttf",
+    24.0, // font size in pixels
+    false // flip_uv (false for standard, true for some renderers)
+);
+defer font_atlas.deinit();
+
+// Fast text measurement (no stb calls)
+const text = "Hello, World!";
+const width = font_atlas.measureText(text);
+std.debug.print("Text width: {d:.1}px\n", .{width});
+
+// Text measurement with ellipsis truncation
+const max_width: f32 = 200.0;
+const result = font_atlas.measureTextWithEllipsis(text, max_width);
+if (result.truncated_len < text.len) {
+    // Text was truncated, render: text[0..result.truncated_len] + "..."
+    std.debug.print("Truncated to {d} chars (width: {d:.1}px)\n",
+        .{result.truncated_len, result.width});
+}
+
+// Access individual glyph metrics
+const glyph = font_atlas.getGlyph('A');
+std.debug.print("Glyph 'A': UV=({d:.3},{d:.3})-({d:.3},{d:.3}), advance={d:.2}px\n",
+    .{glyph.uv_x0, glyph.uv_y0, glyph.uv_x1, glyph.uv_y1, glyph.advance});
+
+// Use texture in rendering
+const texture_handle = font_atlas.texture;
+// ... set texture for rendering with bgfx
+```
+
+**Data Structures:**
+- `FontAtlas` - Complete atlas with texture handle, 256 glyphs, metrics
+- `Glyph` - UV coordinates (uv_x0, uv_y0, uv_x1, uv_y1), offsets, size, advance
+
+**Glyph Structure:**
+```zig
+pub const Glyph = struct {
+    // UV coordinates in atlas (normalized 0-1)
+    uv_x0: f32,
+    uv_y0: f32,
+    uv_x1: f32,
+    uv_y1: f32,
+
+    // Offset from baseline
+    offset_x: f32,
+    offset_y: f32,
+
+    // Size of glyph in pixels
+    width: f32,
+    height: f32,
+
+    // Horizontal advance for cursor positioning
+    advance: f32,
+};
+```
+
+**Atlas Generation Process:**
+1. Load TrueType font file with stb_truetype
+2. Calculate font metrics (ascent, descent, line height)
+3. Render all 256 ASCII glyphs to grayscale atlas (16x16 grid)
+4. Calculate UV coordinates for each glyph
+5. Convert grayscale to RGBA8 (white RGB, glyph in alpha)
+6. Upload to bgfx texture
+
+**Key Features:**
+- **16x16 grid layout** - 256 glyphs in square atlas
+- **Automatic sizing** - Atlas size based on font size + padding
+- **Missing glyph handling** - Empty glyph info for unsupported characters
+- **Debug output** - Logs glyph rendering stats and sample characters
+- **Row wrapping** - Glyphs wrap to next row when needed
+
+**Performance Benefits:**
+- **No runtime font rasterization** - All glyphs pre-rendered
+- **Fast measurement** - Simple advance summation, no stb calls
+- **GPU-friendly** - Single texture for all text rendering
+- **Cache-friendly** - All glyph data in contiguous array
+
+**Available Fonts:**
+The project includes several fonts from bgfx examples:
+- `external/bgfx/examples/runtime/font/roboto-regular.ttf` - Clean sans-serif
+- `external/bgfx/examples/runtime/font/droidsans.ttf` - Android default
+- `external/bgfx/examples/runtime/font/droidsansmono.ttf` - Monospace
+
+**Tests:**
+- 10 comprehensive tests covering all algorithms
+- Glyph struct layout and UV calculation
+- Atlas size calculation for 256 glyphs
+- Text measurement logic with known advances
+- Ellipsis truncation logic
+- Line height calculation from font metrics
+- RGBA conversion for Metal compatibility
+- Glyph packing grid layout
+- All tests pass successfully
+
 ## Important Notes
 
 - `src/bgfx.zig` is auto-generated from the bgfx C API - modifications should be made to the bgfx binding generator, not this file
