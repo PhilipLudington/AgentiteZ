@@ -259,8 +259,8 @@ pub const Renderer2DProper = struct {
     // View ID for UI rendering
     view_id: bgfx.ViewId,
 
-    // Scissor state
-    scissor_cache: u16,
+    // Scissor state - store the actual rect, not the cache handle
+    scissor_rect: Rect,
     scissor_enabled: bool,
 
     pub fn init(allocator: std.mem.Allocator, window_width: u32, window_height: u32) !Renderer2DProper {
@@ -327,7 +327,7 @@ pub const Renderer2DProper = struct {
             .texture_batch = TextureBatch.init(allocator),
             .font_atlas = font_atlas,
             .view_id = 0,
-            .scissor_cache = 0,
+            .scissor_rect = Rect{ .x = 0, .y = 0, .width = @floatFromInt(window_width), .height = @floatFromInt(window_height) },
             .scissor_enabled = false,
         };
     }
@@ -349,8 +349,18 @@ pub const Renderer2DProper = struct {
     pub fn beginFrame(self: *Renderer2DProper) void {
         self.color_batch.clear();
         self.texture_batch.clear();
-        // Reset scissor state each frame
-        self.scissor_enabled = false;
+        // Reset scissor to full window at frame start
+        self.scissor_rect = Rect{
+            .x = 0,
+            .y = 0,
+            .width = @floatFromInt(self.window_width),
+            .height = @floatFromInt(self.window_height),
+        };
+        self.scissor_enabled = true;
+        std.debug.print("beginFrame: scissor = full window ({}x{})\n", .{
+            self.window_width,
+            self.window_height,
+        });
     }
 
     /// End frame - flush batches
@@ -362,6 +372,14 @@ pub const Renderer2DProper = struct {
     /// Flush colored draw batch to GPU
     fn flushColorBatch(self: *Renderer2DProper) void {
         if (self.color_batch.vertices.items.len == 0) return;
+
+        std.debug.print("    flushColorBatch: {d} vertices, scissor=({d:.0},{d:.0}) {d:.0}x{d:.0}\n", .{
+            self.color_batch.vertices.items.len,
+            self.scissor_rect.x,
+            self.scissor_rect.y,
+            self.scissor_rect.width,
+            self.scissor_rect.height,
+        });
 
         // Allocate transient buffers
         var tvb: bgfx.TransientVertexBuffer = undefined;
@@ -411,9 +429,14 @@ pub const Renderer2DProper = struct {
         bgfx.setTransientVertexBuffer(0, &tvb, 0, num_vertices);
         bgfx.setTransientIndexBuffer(&tib, 0, num_indices);
 
-        // Apply scissor if enabled
+        // Apply scissor if enabled - call setScissor fresh each time
         if (self.scissor_enabled) {
-            bgfx.setScissorCached(self.scissor_cache);
+            _ = bgfx.setScissor(
+                @intFromFloat(self.scissor_rect.x),
+                @intFromFloat(self.scissor_rect.y),
+                @intFromFloat(self.scissor_rect.width),
+                @intFromFloat(self.scissor_rect.height)
+            );
         }
 
         // Set render state (alpha blending: src_alpha, inv_src_alpha)
@@ -484,9 +507,14 @@ pub const Renderer2DProper = struct {
         // Set texture
         bgfx.setTexture(0, self.shader_programs.texture_sampler, self.font_atlas.texture, 0xffffffff);
 
-        // Apply scissor if enabled
+        // Apply scissor if enabled - call setScissor fresh each time
         if (self.scissor_enabled) {
-            bgfx.setScissorCached(self.scissor_cache);
+            _ = bgfx.setScissor(
+                @intFromFloat(self.scissor_rect.x),
+                @intFromFloat(self.scissor_rect.y),
+                @intFromFloat(self.scissor_rect.width),
+                @intFromFloat(self.scissor_rect.height)
+            );
         }
 
         // Set render state (alpha blending: src_alpha, inv_src_alpha)
@@ -588,30 +616,35 @@ pub const Renderer2DProper = struct {
 
     /// Begin scissor
     pub fn beginScissor(self: *Renderer2DProper, rect: Rect) void {
+        std.debug.print("  beginScissor: ({d:.0}, {d:.0}) {d:.0}x{d:.0}\n", .{rect.x, rect.y, rect.width, rect.height});
+
         // Flush current batches before changing scissor
         self.flushColorBatch();
         self.flushTextureBatch();
 
-        // Set scissor rectangle and cache the handle
-        self.scissor_cache = bgfx.setScissor(
-            @intFromFloat(rect.x),
-            @intFromFloat(rect.y),
-            @intFromFloat(rect.width),
-            @intFromFloat(rect.height)
-        );
+        // Store the scissor rectangle
+        self.scissor_rect = rect;
         self.scissor_enabled = true;
     }
 
-    /// End scissor
+    /// End scissor - resets to full window bounds
     pub fn endScissor(self: *Renderer2DProper) void {
+        std.debug.print("  endScissor: resetting to full window\n", .{});
+
         // Flush batches with current scissor
         self.flushColorBatch();
         self.flushTextureBatch();
 
-        // Disable scissor
-        self.scissor_enabled = false;
-        // Reset scissor cache to 0
-        self.scissor_cache = 0;
+        // Reset scissor to full window bounds
+        self.scissor_rect = Rect{
+            .x = 0,
+            .y = 0,
+            .width = @floatFromInt(self.window_width),
+            .height = @floatFromInt(self.window_height),
+        };
+
+        // Keep scissor enabled but with full window bounds
+        self.scissor_enabled = true;
     }
 
     /// Flush all pending draw batches
