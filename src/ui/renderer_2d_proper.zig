@@ -119,15 +119,17 @@ const FontAtlas = struct {
             rgba_bitmap[i * 4 + 3] = gray; // A
         }
 
-        // Create bgfx texture
+        // Create bgfx texture with clamp sampling to prevent bleeding at edges
+        // Use linear filtering for smooth text rendering
         const texture_mem = bgfx.copy(rgba_bitmap.ptr, @intCast(rgba_bitmap.len));
+        const texture_flags = bgfx.SamplerFlags_UClamp | bgfx.SamplerFlags_VClamp;
         const texture = bgfx.createTexture2D(
             @intCast(atlas_width),
             @intCast(atlas_height),
             false,
             1,
             bgfx.TextureFormat.RGBA8,
-            0,
+            texture_flags,
             texture_mem,
         );
 
@@ -577,10 +579,18 @@ pub const Renderer2DProper = struct {
             const y1 = y0 + (@as(f32, @floatFromInt(char_info.y1)) - @as(f32, @floatFromInt(char_info.y0))) * scale;
 
             // Calculate UV coordinates (normalized 0-1)
-            const uv_x0 = @as(f32, @floatFromInt(char_info.x0)) / @as(f32, @floatFromInt(self.font_atlas.width));
-            const uv_y0 = @as(f32, @floatFromInt(char_info.y0)) / @as(f32, @floatFromInt(self.font_atlas.height));
-            const uv_x1 = @as(f32, @floatFromInt(char_info.x1)) / @as(f32, @floatFromInt(self.font_atlas.width));
-            const uv_y1 = @as(f32, @floatFromInt(char_info.y1)) / @as(f32, @floatFromInt(self.font_atlas.height));
+            // TEXTURE ATLAS SAFEGUARDS:
+            // 1. Half-pixel offset: Sample from pixel centers (+0.5/-0.5) to prevent
+            //    bilinear filtering from missing edge pixels
+            // 2. Clamp sampling: Texture uses UClamp/VClamp flags to prevent wraparound
+            // 3. Linear filtering: Uses default bilinear filtering for smooth antialiased text
+            const atlas_w = @as(f32, @floatFromInt(self.font_atlas.width));
+            const atlas_h = @as(f32, @floatFromInt(self.font_atlas.height));
+
+            const uv_x0 = (@as(f32, @floatFromInt(char_info.x0)) + 0.5) / atlas_w;
+            const uv_y0 = (@as(f32, @floatFromInt(char_info.y0)) + 0.5) / atlas_h;
+            const uv_x1 = (@as(f32, @floatFromInt(char_info.x1)) - 0.5) / atlas_w;
+            const uv_y1 = (@as(f32, @floatFromInt(char_info.y1)) - 0.5) / atlas_h;
 
             // Add textured quad to batch
             const w = x1 - x0;
