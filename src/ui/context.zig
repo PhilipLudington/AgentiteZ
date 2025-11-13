@@ -142,9 +142,20 @@ pub const Context = struct {
             callback.render_fn(self, callback.data);
         }
 
+        // Flush existing batches BEFORE rendering dropdown overlays
+        // This ensures overlays are drawn on top in a separate draw call
+        if (self.dropdown_overlays.items.len > 0) {
+            self.renderer.flushBatches();
+        }
+
         // Render all deferred dropdown overlays
         for (self.dropdown_overlays.items) |overlay| {
             renderDropdownOverlay(self, overlay);
+        }
+
+        // CRITICAL: Flush overlay batches immediately so they don't get cleared by next beginFrame
+        if (self.dropdown_overlays.items.len > 0) {
+            self.renderer.flushBatches();
         }
 
         // Clean up old widget states that weren't used this frame

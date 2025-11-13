@@ -610,6 +610,14 @@ pub const Renderer2DProper = struct {
 
         // Disable scissor
         self.scissor_enabled = false;
+        // Reset scissor cache to 0
+        self.scissor_cache = 0;
+    }
+
+    /// Flush all pending draw batches
+    pub fn flushBatches(self: *Renderer2DProper) void {
+        self.flushColorBatch();
+        self.flushTextureBatch();
     }
 
     pub fn isNull(self: *Renderer2DProper) bool {

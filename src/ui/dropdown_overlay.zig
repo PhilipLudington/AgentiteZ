@@ -7,12 +7,13 @@ const widgetId = @import("types.zig").widgetId;
 
 /// Render a deferred dropdown list overlay (called by Context.endFrame)
 pub fn renderDropdownList(ctx: *Context, overlay: anytype) void {
+
     // Cast state_ptr back to DropdownState
     const state: *DropdownState = @ptrCast(@alignCast(overlay.state_ptr));
 
-    // Draw list background
-    ctx.renderer.drawRect(overlay.list_rect, Color.rgb(255, 255, 255));
-    ctx.renderer.drawRectOutline(overlay.list_rect, Color.rgb(150, 150, 150), 1.0);
+    // Draw list background with bright colors for debugging
+    ctx.renderer.drawRect(overlay.list_rect, Color.rgb(255, 255, 255)); // White background
+    ctx.renderer.drawRectOutline(overlay.list_rect, Color.rgb(150, 150, 150), 1.0); // Gray border
 
     // Draw each option
     for (overlay.options, 0..) |option, i| {

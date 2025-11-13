@@ -296,11 +296,13 @@ pub fn textInput(ctx: *Context, label_text: []const u8, rect: Rect, buffer: []u8
     if (is_focused) {
         const text_bounds = ctx.renderer.measureText(text_to_display, text_size);
         const cursor_x = text_pos.x + text_bounds.x + 2;
+        // Cursor should span from top of text to baseline (not below baseline)
+        // Text baseline is at text_pos.y, and text extends upward by approximately text_size
         const cursor_rect = Rect{
             .x = cursor_x,
-            .y = text_pos.y,
+            .y = text_pos.y - text_size * 0.75, // Start above baseline
             .width = 2,
-            .height = text_size,
+            .height = text_size * 0.9, // Height to cover text area
         };
         ctx.renderer.drawRect(cursor_rect, Color.black);
     }
@@ -474,7 +476,6 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
     }
 
     const padding: f32 = 3; // Padding from edges
-    const text_padding: f32 = 5; // Extra padding for text to prevent glyph clipping
 
     // Calculate which items could be visible (for performance optimization)
     const start_index = @as(usize, @intFromFloat(@max(0, state.scroll_offset / item_height)));
@@ -482,11 +483,12 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
     const end_index = @min(items.len, start_index + max_visible);
 
     // Enable GPU scissor for proper clipping
-    // Add extra horizontal padding to prevent glyph clipping (some glyphs have negative xoff)
+    // Use wider left margin to prevent glyph clipping from negative bearing
+    const scissor_left_padding: f32 = 20; // Extra left padding for glyphs
     const content_area = Rect{
-        .x = rect.x + padding - text_padding,
+        .x = rect.x - scissor_left_padding, // Extend left to avoid clipping glyphs with negative bearing
         .y = rect.y + padding,
-        .width = rect.width - (padding * 2) + (text_padding * 2),
+        .width = rect.width + scissor_left_padding + padding, // Width from extended left to right edge
         .height = rect.height - (padding * 2),
     };
     ctx.renderer.beginScissor(content_area);
@@ -520,7 +522,7 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
         // Draw item text (GPU scissor will clip it)
         const text_size: f32 = 14;
         const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
-        const text_x = item_rect.x + 8;  // Increased padding to prevent clipping
+        const text_x = item_rect.x + 18;  // Extra padding to prevent glyphs with negative xoff/bearing from clipping
         const text_y = item_rect.y + item_height / 2 - baseline_offset;
         ctx.renderer.drawText(items[i], Vec2.init(text_x, text_y), text_size, Color.rgb(10, 10, 10));
     }
@@ -775,9 +777,10 @@ pub fn tabBar(ctx: *Context, id_label: []const u8, rect: Rect, tab_labels: []con
         // Draw tab label (centered)
         const text_size: f32 = 14;
         const text_bounds = ctx.renderer.measureText(tab_label, text_size);
+        const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
         const text_pos = Vec2{
             .x = tab_x + (tab_width - text_bounds.x) / 2,
-            .y = rect.y + (tab_height - text_bounds.y) / 2,
+            .y = rect.y + tab_height / 2 - baseline_offset,
         };
         const text_color = if (is_active) Color.black else Color.rgb(80, 80, 80);
         ctx.renderer.drawText(tab_label, text_pos, text_size, text_color);
@@ -855,7 +858,7 @@ pub fn checkbox(ctx: *Context, label_text: []const u8, rect: Rect, checked: *boo
         const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
         const text_y = rect.y + rect.height / 2 - baseline_offset;
 
-        ctx.renderer.drawText(label_text, .{ .x = text_x, .y = text_y }, text_size, Color.black);
+        ctx.renderer.drawText(label_text, .{ .x = text_x, .y = text_y }, text_size, Color.white);
     }
 
     return changed;

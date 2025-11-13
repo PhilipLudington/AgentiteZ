@@ -91,6 +91,9 @@ pub fn main() !void {
     @memcpy(demo_state.text_buffer[0..initial_text.len], initial_text);
     demo_state.text_len = initial_text.len;
 
+    // Enable text input
+    _ = c.SDL_StartTextInput(window);
+
     std.debug.print("UI Demo initialized! Press ESC to exit.\n", .{});
 
     // Main event loop
@@ -111,6 +114,9 @@ pub fn main() !void {
         var mouse_clicked = false;
         var mouse_released = false;
         var mouse_wheel: f32 = 0;
+        var text_input_buf: [32]u8 = undefined;
+        var text_input_len: usize = 0;
+        var backspace_pressed = false;
 
         // Poll events
         while (c.SDL_PollEvent(&event)) {
@@ -121,6 +127,18 @@ pub fn main() !void {
                 c.SDL_EVENT_KEY_DOWN => {
                     if (event.key.key == c.SDLK_ESCAPE) {
                         running = false;
+                    } else if (event.key.key == c.SDLK_BACKSPACE) {
+                        backspace_pressed = true;
+                    }
+                },
+                c.SDL_EVENT_TEXT_INPUT => {
+                    // In SDL3, event.text.text is a pointer to a null-terminated string
+                    if (event.text.text) |text_ptr| {
+                        const text_len = std.mem.len(text_ptr);
+                        if (text_len > 0 and text_input_len + text_len < text_input_buf.len) {
+                            @memcpy(text_input_buf[text_input_len..][0..text_len], text_ptr[0..text_len]);
+                            text_input_len += text_len;
+                        }
                     }
                 },
                 c.SDL_EVENT_WINDOW_RESIZED => {
@@ -149,6 +167,8 @@ pub fn main() !void {
         input.mouse_clicked = mouse_clicked;
         input.mouse_released = mouse_released;
         input.mouse_wheel = mouse_wheel;
+        input.text_input = text_input_buf[0..text_input_len];
+        input.key_pressed = if (backspace_pressed) ui.Key.backspace else null;
 
         // Set view 0 to cover the entire window
         bgfx.setViewRect(0, 0, 0, @intCast(window_width), @intCast(window_height));
@@ -260,7 +280,8 @@ pub fn main() !void {
             3 => "Controls settings would go here",
             else => "Unknown tab",
         };
-        ui.label(&ctx, tab_content, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 14, ui.Color.white);
+        // Move content down by half letter height (about 7px for 14pt font)
+        ui.label(&ctx, tab_content, .{ .x = ctx.cursor.x, .y = ctx.cursor.y + 7 }, 14, ui.Color.white);
         ctx.cursor.y += 40;
 
         // === Scroll List Section ===

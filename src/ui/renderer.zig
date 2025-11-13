@@ -32,6 +32,8 @@ pub const Renderer = struct {
         beginScissor: *const fn (ptr: *anyopaque, rect: Rect) void,
         /// End scissor clipping (restore normal rendering)
         endScissor: *const fn (ptr: *anyopaque) void,
+        /// Flush pending draw batches to GPU
+        flushBatches: *const fn (ptr: *anyopaque) void,
         /// Check if this is a null/test renderer
         isNull: *const fn (ptr: *anyopaque) bool,
     };
@@ -62,6 +64,10 @@ pub const Renderer = struct {
 
     pub fn endScissor(self: Renderer) void {
         self.vtable.endScissor(self.ptr);
+    }
+
+    pub fn flushBatches(self: Renderer) void {
+        self.vtable.flushBatches(self.ptr);
     }
 
     pub fn isNull(self: Renderer) bool {
@@ -109,6 +115,11 @@ pub const Renderer = struct {
                 self.endScissor();
             }
 
+            fn flushBatchesImpl(p: *anyopaque) void {
+                const self: *T = @ptrCast(@alignCast(p));
+                self.flushBatches();
+            }
+
             fn isNullImpl(p: *anyopaque) bool {
                 const self: *T = @ptrCast(@alignCast(p));
                 return self.isNull();
@@ -122,6 +133,7 @@ pub const Renderer = struct {
                 .getBaselineOffset = getBaselineOffsetImpl,
                 .beginScissor = beginScissorImpl,
                 .endScissor = endScissorImpl,
+                .flushBatches = flushBatchesImpl,
                 .isNull = isNullImpl,
             };
         };
@@ -174,6 +186,10 @@ pub const NullRenderer = struct {
     }
 
     pub fn endScissor(self: *NullRenderer) void {
+        _ = self;
+    }
+
+    pub fn flushBatches(self: *NullRenderer) void {
         _ = self;
     }
 
