@@ -34,6 +34,10 @@ pub const Renderer = struct {
         endScissor: *const fn (ptr: *anyopaque) void,
         /// Flush pending draw batches to GPU
         flushBatches: *const fn (ptr: *anyopaque) void,
+        /// Switch to overlay view for layered rendering
+        pushOverlayView: *const fn (ptr: *anyopaque) void,
+        /// Switch back to default view
+        popOverlayView: *const fn (ptr: *anyopaque) void,
         /// Check if this is a null/test renderer
         isNull: *const fn (ptr: *anyopaque) bool,
     };
@@ -68,6 +72,14 @@ pub const Renderer = struct {
 
     pub fn flushBatches(self: Renderer) void {
         self.vtable.flushBatches(self.ptr);
+    }
+
+    pub fn pushOverlayView(self: Renderer) void {
+        self.vtable.pushOverlayView(self.ptr);
+    }
+
+    pub fn popOverlayView(self: Renderer) void {
+        self.vtable.popOverlayView(self.ptr);
     }
 
     pub fn isNull(self: Renderer) bool {
@@ -120,6 +132,16 @@ pub const Renderer = struct {
                 self.flushBatches();
             }
 
+            fn pushOverlayViewImpl(p: *anyopaque) void {
+                const self: *T = @ptrCast(@alignCast(p));
+                self.pushOverlayView();
+            }
+
+            fn popOverlayViewImpl(p: *anyopaque) void {
+                const self: *T = @ptrCast(@alignCast(p));
+                self.popOverlayView();
+            }
+
             fn isNullImpl(p: *anyopaque) bool {
                 const self: *T = @ptrCast(@alignCast(p));
                 return self.isNull();
@@ -134,6 +156,8 @@ pub const Renderer = struct {
                 .beginScissor = beginScissorImpl,
                 .endScissor = endScissorImpl,
                 .flushBatches = flushBatchesImpl,
+                .pushOverlayView = pushOverlayViewImpl,
+                .popOverlayView = popOverlayViewImpl,
                 .isNull = isNullImpl,
             };
         };
@@ -190,6 +214,14 @@ pub const NullRenderer = struct {
     }
 
     pub fn flushBatches(self: *NullRenderer) void {
+        _ = self;
+    }
+
+    pub fn pushOverlayView(self: *NullRenderer) void {
+        _ = self;
+    }
+
+    pub fn popOverlayView(self: *NullRenderer) void {
         _ = self;
     }
 

@@ -170,8 +170,12 @@ pub fn main() !void {
         input.text_input = text_input_buf[0..text_input_len];
         input.key_pressed = if (backspace_pressed) ui.Key.backspace else null;
 
-        // Set view 0 to cover the entire window
+        // Set view 0 (main UI) to cover the entire window
         bgfx.setViewRect(0, 0, 0, @intCast(window_width), @intCast(window_height));
+
+        // Set view 1 (overlay) to cover the entire window
+        // Views are rendered in order, so view 1 will render after view 0
+        bgfx.setViewRect(1, 0, 0, @intCast(window_width), @intCast(window_height));
 
         // Clear the framebuffer
         bgfx.setViewClear(

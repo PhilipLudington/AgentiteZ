@@ -10,7 +10,15 @@ pub fn renderDropdownList(ctx: *Context, overlay: anytype) void {
     // Cast state_ptr back to DropdownState
     const state: *DropdownState = @ptrCast(@alignCast(overlay.state_ptr));
 
-    // CRITICAL: Reset scissor to full window for overlay rendering
+    // CRITICAL: Flush any pending geometry BEFORE switching to overlay view
+    // This ensures previous content is rendered with the correct scissor/view
+    ctx.renderer.flushBatches();
+
+    // Switch to overlay view - this ensures dropdown renders AFTER main UI
+    // bgfx processes views in order, so view 1 will always render after view 0
+    ctx.renderer.pushOverlayView();
+
+    // Reset scissor to full window for overlay rendering
     // This ensures the dropdown renders on top without being clipped by parent widgets
     ctx.renderer.endScissor();
 
@@ -53,4 +61,11 @@ pub fn renderDropdownList(ctx: *Context, overlay: anytype) void {
         };
         ctx.renderer.drawText(option, item_text_pos, overlay.text_size, Color.rgb(10, 10, 10));
     }
+
+    // CRITICAL: Flush dropdown geometry immediately
+    // This ensures the dropdown is rendered with the overlay view
+    ctx.renderer.flushBatches();
+
+    // Switch back to default view for subsequent rendering
+    ctx.renderer.popOverlayView();
 }

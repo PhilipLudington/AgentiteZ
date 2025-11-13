@@ -258,6 +258,8 @@ pub const Renderer2DProper = struct {
 
     // View ID for UI rendering
     view_id: bgfx.ViewId,
+    default_view_id: bgfx.ViewId,  // Store the default view
+    overlay_view_id: bgfx.ViewId,   // Overlay view for dropdowns/modals
 
     // Scissor state - store the actual rect, not the cache handle
     scissor_rect: Rect,
@@ -327,6 +329,8 @@ pub const Renderer2DProper = struct {
             .texture_batch = TextureBatch.init(allocator),
             .font_atlas = font_atlas,
             .view_id = 0,
+            .default_view_id = 0,
+            .overlay_view_id = 1,
             .scissor_rect = Rect{ .x = 0, .y = 0, .width = @floatFromInt(window_width), .height = @floatFromInt(window_height) },
             .scissor_enabled = false,
         };
@@ -449,7 +453,11 @@ pub const Renderer2DProper = struct {
         );
 
         // Submit draw call with color shader program
-        _ = bgfx.submit(self.view_id, self.shader_programs.color_program, 0, 0);
+        _ = bgfx.submit(self.view_id, self.shader_programs.color_program, 0, bgfx.DiscardFlags_All);
+
+        // Clear the batch after submitting
+        std.debug.print("    CLEARING color batch\n", .{});
+        self.color_batch.clear();
     }
 
     /// Flush textured draw batch to GPU
@@ -527,7 +535,10 @@ pub const Renderer2DProper = struct {
         );
 
         // Submit draw call with texture shader program
-        _ = bgfx.submit(self.view_id, self.shader_programs.texture_program, 0, 0);
+        _ = bgfx.submit(self.view_id, self.shader_programs.texture_program, 0, bgfx.DiscardFlags_All);
+
+        // Clear the batch after submitting
+        self.texture_batch.clear();
     }
 
     /// Draw a filled rectangle
@@ -631,9 +642,9 @@ pub const Renderer2DProper = struct {
     pub fn endScissor(self: *Renderer2DProper) void {
         std.debug.print("  endScissor: resetting to full window\n", .{});
 
-        // Flush batches with current scissor
-        self.flushColorBatch();
-        self.flushTextureBatch();
+        // CRITICAL: Do NOT flush here - just change the scissor state
+        // The caller should flush before calling endScissor if needed
+        // This allows the next draw operations to use the full window scissor
 
         // Reset scissor to full window bounds
         self.scissor_rect = Rect{
@@ -651,6 +662,18 @@ pub const Renderer2DProper = struct {
     pub fn flushBatches(self: *Renderer2DProper) void {
         self.flushColorBatch();
         self.flushTextureBatch();
+    }
+
+    /// Switch to overlay view (for dropdowns, tooltips, modals)
+    pub fn pushOverlayView(self: *Renderer2DProper) void {
+        std.debug.print("  PUSH OVERLAY VIEW\n", .{});
+        self.view_id = self.overlay_view_id;
+    }
+
+    /// Switch back to default view
+    pub fn popOverlayView(self: *Renderer2DProper) void {
+        std.debug.print("  POP OVERLAY VIEW\n", .{});
+        self.view_id = self.default_view_id;
     }
 
     pub fn isNull(self: *Renderer2DProper) bool {
