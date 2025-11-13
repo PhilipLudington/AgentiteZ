@@ -4,6 +4,7 @@ const bgfx = root.bgfx;
 const stb = root.stb_truetype;
 const types = @import("types.zig");
 const shaders = @import("shaders.zig");
+const log = @import("../log.zig");
 
 pub const Rect = types.Rect;
 pub const Color = types.Color;
@@ -532,7 +533,10 @@ pub const Renderer2DProper = struct {
 
     /// Draw a filled rectangle
     pub fn drawRect(self: *Renderer2DProper, rect: Rect, color: Color) void {
-        self.color_batch.addQuad(rect.x, rect.y, rect.width, rect.height, color) catch return;
+        self.color_batch.addQuad(rect.x, rect.y, rect.width, rect.height, color) catch |err| {
+            log.renderer.warn("Failed to add rectangle to batch, skipping: {}", .{err});
+            return;
+        };
     }
 
     /// Draw rectangle outline
@@ -582,7 +586,10 @@ pub const Renderer2DProper = struct {
             // Add textured quad to batch
             const w = x1 - x0;
             const h = y1 - y0;
-            self.texture_batch.addQuad(x0, y0, w, h, uv_x0, uv_y0, uv_x1, uv_y1, color) catch return;
+            self.texture_batch.addQuad(x0, y0, w, h, uv_x0, uv_y0, uv_x1, uv_y1, color) catch |err| {
+                log.renderer.warn("Failed to add text glyph to batch, remaining text will not render: {}", .{err});
+                return;
+            };
 
             // Advance cursor
             cursor_x += char_info.xadvance * scale;

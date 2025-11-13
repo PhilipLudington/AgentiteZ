@@ -1,6 +1,7 @@
 const std = @import("std");
 const context_mod = @import("context.zig");
 const types = @import("types.zig");
+const log = @import("../log.zig");
 
 pub const Context = context_mod.Context;
 pub const widgetId = types.widgetId;
@@ -410,7 +411,9 @@ pub fn dropdown(ctx: *Context, label_text: []const u8, rect: Rect, options: []co
             .text_size = text_size,
             .item_height = item_height,
             .state_ptr = @ptrCast(state),
-        }) catch {};
+        }) catch |err| {
+            log.ui.err("Failed to queue dropdown overlay, dropdown will not render: {}", .{err});
+        };
     }
 
     // Draw label above the dropdown

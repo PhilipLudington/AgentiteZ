@@ -2,6 +2,7 @@ const std = @import("std");
 const types = @import("types.zig");
 const renderer_mod = @import("renderer.zig");
 const dpi_mod = @import("dpi.zig");
+const log = @import("../log.zig");
 
 pub const WidgetId = types.WidgetId;
 pub const widgetId = types.widgetId;
@@ -216,7 +217,9 @@ pub const Context = struct {
         state.hot = self.isHot(id);
         state.active = self.isActive(id);
         state.rect = rect;
-        self.widget_states.put(id, state) catch {};
+        self.widget_states.put(id, state) catch |err| {
+            log.ui.warn("Failed to update widget state: {}", .{err});
+        };
 
         return was_clicked;
     }
@@ -247,8 +250,9 @@ pub const Context = struct {
         self.overlay_callbacks.append(self.allocator, .{
             .render_fn = render_fn,
             .data = data,
-        }) catch {
+        }) catch |err| {
             // If we can't append, just render immediately as fallback
+            log.ui.warn("Failed to queue overlay callback, rendering immediately: {}", .{err});
             render_fn(self, data);
         };
     }
