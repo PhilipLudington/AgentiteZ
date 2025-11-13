@@ -5,6 +5,7 @@ const bgfx = EtherMud.bgfx;
 const ui = EtherMud.ui;
 const ecs = EtherMud.ecs;
 const platform = EtherMud.platform;
+const config = EtherMud.config;
 const c = sdl.c;
 
 // ECS demo components
@@ -148,6 +149,41 @@ pub fn main() !void {
 
     std.debug.print("UI Demo initialized! Press ESC to exit.\n", .{});
     std.debug.print("ECS: {d} entities created\n", .{ecs_world.entityCount()});
+
+    // === Load MUD Configuration Data ===
+    std.debug.print("\n=== Loading MUD Configuration ===\n", .{});
+
+    var rooms = try config.loadRooms(allocator);
+    defer {
+        var room_iter = rooms.valueIterator();
+        while (room_iter.next()) |room| {
+            var room_mut = room.*;
+            room_mut.deinit();
+        }
+        rooms.deinit();
+    }
+
+    var items = try config.loadItems(allocator);
+    defer {
+        var item_iter = items.valueIterator();
+        while (item_iter.next()) |item| {
+            var item_mut = item.*;
+            item_mut.deinit();
+        }
+        items.deinit();
+    }
+
+    var npcs = try config.loadNPCs(allocator);
+    defer {
+        var npc_iter = npcs.valueIterator();
+        while (npc_iter.next()) |npc| {
+            var npc_mut = npc.*;
+            npc_mut.deinit();
+        }
+        npcs.deinit();
+    }
+
+    std.debug.print("=== Configuration Loading Complete ===\n\n", .{});
 
     // Initialize input state
     var input_state = platform.InputState.init(allocator);

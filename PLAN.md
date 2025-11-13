@@ -8,15 +8,20 @@
 - Interactive demo showcasing all features
 - ~6 hours of focused development
 
+**Phase 2 (Data & Content): IN PROGRESS** 🚧
+- Configuration Loading System ✅ COMPLETE (2-3 hours)
+- 7 example rooms, 10 items, 10 NPCs in TOML format
+- TOML parser with no external dependencies
+- Integrated into demo application
+
 **Ready For:**
-- Game content development (MUD rooms, items, NPCs)
-- Data-driven configuration (Phase 2)
+- MUD game logic development (using loaded content)
 - Save/load systems (Phase 2)
+- Font atlas optimization (Phase 2)
 
 **Next Priorities:**
-1. Configuration Loading System (⭐⭐⭐⭐) - Load MUD content from files
-2. Save/Load System (⭐⭐⭐⭐) - Persist game state
-3. Font Atlas System (⭐⭐⭐) - Better text rendering performance
+1. Save/Load System (⭐⭐⭐⭐) - Persist game state
+2. Font Atlas System (⭐⭐⭐) - Better text rendering performance
 
 ---
 
@@ -36,6 +41,7 @@
 - **Virtual Resolution System** ✅ ALREADY PRESENT (RenderScale with 1920x1080 virtual coords)
 - **Layout System** ✅ PORTED (vertical/horizontal, alignment, spacing, padding)
 - **Input State Abstraction** ✅ PORTED (event-driven → immediate-mode query API)
+- **Configuration Loading System** ✅ PORTED (TOML parser, room/item/NPC loaders)
 
 ## 🚀 HIGH-VALUE FEATURES TO PORT
 
@@ -166,21 +172,28 @@
 
 ---
 
-### 7. **Configuration Loading System**
+### 7. **Configuration Loading System** ✅ COMPLETED
 **What:** TOML-based config system
-**Why:** Load game data from files instead of hardcoding
-**Files to port:**
-- `engine/src/data/toml.zig` - Manual TOML parsing (no external deps)
-- `game/src/config/config_loader.zig` - Game-specific config structures
+**Status:** ✅ **PORTED** - Available at `@import("EtherMud").config` and `@import("EtherMud").data`
 
-**Benefits:**
-- No external dependencies
-- Load MUD rooms, items, NPCs from config files
-- Resource costs, requirements, metadata
-- Easy modding support
+**Ported Files:**
+- `src/data/toml.zig` - Manual TOML parsing (no external deps) ✅
+- `src/data.zig` - Data module exports ✅
+- `src/config/config_loader.zig` - MUD-specific config loaders ✅
+- `src/config.zig` - Config module exports ✅
+- `assets/data/rooms.toml` - 7 example rooms ✅
+- `assets/data/items.toml` - 10 example items ✅
+- `assets/data/npcs.toml` - 10 example NPCs ✅
 
-**Effort:** 2-3 hours
-**Value:** ⭐⭐⭐⭐
+**Benefits Achieved:**
+- No external dependencies - pure Zig stdlib ✅
+- Load MUD rooms, items, NPCs from TOML files ✅
+- Graceful fallback with multiple search paths ✅
+- Easy modding support via text files ✅
+- Integrated into main demo ✅
+
+**Tests:** 11 passing tests (8 TOML parser tests + 3 config loader tests)
+**Effort:** ~2.5 hours
 
 ---
 
@@ -252,11 +265,12 @@
 
 ---
 
-### 🎯 Phase 2: Data & Content - Recommended Next
-5. ⏸️ **Configuration Loading System** (⭐⭐⭐⭐) - TOML-based config loading (2-3h)
-   - Load MUD rooms, items, NPCs from files
-   - Enable data-driven game design
-   - Easy modding support
+### 🎯 Phase 2: Data & Content - IN PROGRESS
+5. ✅ **Configuration Loading System** (⭐⭐⭐⭐) - TOML-based config loading (~2.5h)
+   - Load MUD rooms, items, NPCs from files ✅
+   - Enable data-driven game design ✅
+   - Easy modding support ✅
+   - 7 rooms, 10 items, 10 NPCs in TOML files ✅
 
 6. ⏸️ **Save/Load System** (⭐⭐⭐⭐) - Game state persistence (2-4h)
    - Serialize world state to TOML
@@ -268,8 +282,8 @@
    - Fast text measurement
    - Better performance
 
-**Phase 2 Estimated:** ~8 hours
-**Status:** Not started - ready to begin when needed
+**Phase 2 Progress:** 1/3 systems complete (~2.5h / ~8h estimated)
+**Status:** Configuration Loading complete, ready for Save/Load or Font Atlas
 
 ---
 
@@ -305,9 +319,10 @@ Once ECS is ported, create these MUD components:
 
 **Total Target:** 15-20 hours
 **Phase 1 Completed:** ~6 hours ✅
-**Remaining:** ~9-14 hours for Phases 2 & 3
+**Phase 2 Progress:** ~2.5 hours (1/3 systems) ✅
+**Remaining:** ~6-11.5 hours for Phase 2 & 3
 
-### Completed (Phase 1)
+### Completed (Phase 1 - Foundation)
 1. ✅ **ECS System** - Game architecture foundation (3-4h)
 2. ✅ **Virtual Resolution** - Already present (0h)
 3. ✅ **Layout System** - Cleaner UI code (1-2h)
@@ -316,18 +331,24 @@ Once ECS is ported, create these MUD components:
 
 **Phase 1 Status:** 100% complete, all systems tested and documented
 
-### Recommended Next (Phase 2)
-6. ⏸️ **Configuration Loading** - Data-driven content (2-3h)
+### Completed (Phase 2 - Data & Content)
+6. ✅ **Configuration Loading** - Data-driven content (~2.5h)
+   - TOML parser with no external dependencies
+   - Room, Item, NPC loaders
+   - 27 example game objects in TOML files
+
+### In Progress (Phase 2)
 7. ⏸️ **Save/Load System** - Game persistence (2-4h)
 8. ⏸️ **Font Atlas** - Performance improvement (2-3h)
 
-**Phase 2 Estimate:** ~8 hours
+**Phase 2 Status:** 1/3 complete (~2.5h / ~8h estimated)
 
 **Demo Enhancements Added:**
 - ✅ Layout System demo panel with auto-positioned buttons
 - ✅ ECS System demo panel with 5 bouncing entities
 - ✅ Virtual Resolution info panel with live stats
 - ✅ Input State demo panel with real-time input visualization
+- ✅ Configuration Loading integration (loads on startup)
 - ✅ All panel text properly spaced from borders
 
 **Input State Demo Features:**
@@ -349,13 +370,17 @@ All features documented from analysis of StellarThroneZig at `/Users/mrphil/Fun/
 - `CLAUDE.md` - Architecture guide
 
 **Latest Update:** November 13, 2025
-**Status:** Foundation complete + Input State - ready for game content development!
+**Status:** Phase 1 complete + Configuration Loading System - ready for MUD game logic!
 
-**Completed Systems (4):**
+**Completed Systems (5):**
 1. ✅ ECS System - Entity-Component-System architecture
 2. ✅ Virtual Resolution - 1920x1080 virtual coordinate space
 3. ✅ Layout System - Automatic widget positioning
 4. ✅ Input State - Clean event → query input API
+5. ✅ Configuration Loading - TOML-based data loading (rooms/items/NPCs)
 
-**Total Implementation Time:** ~6 hours
-**Test Coverage:** 18+ passing tests across all systems
+**Total Implementation Time:** ~8.5 hours
+**Test Coverage:** 29+ passing tests across all systems
+- 8 TOML parser tests
+- 3 config loader tests (rooms, items, NPCs)
+- 18 existing tests from Phase 1

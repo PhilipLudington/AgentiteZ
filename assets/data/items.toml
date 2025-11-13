@@ -1,0 +1,93 @@
+# items.toml
+# Item definitions for EtherMud
+# Each [[item]] section defines an item that can be found, bought, or equipped
+
+[[item]]
+id = "rusty_sword"
+name = "Rusty Sword"
+description = "A worn blade covered in patches of rust. Despite its age, it still holds an edge."
+weight = 3.5
+value = 15
+equippable = true
+consumable = false
+
+[[item]]
+id = "iron_sword"
+name = "Iron Sword"
+description = "A well-forged iron blade with a leather-wrapped hilt. Reliable and sturdy."
+weight = 4.0
+value = 50
+equippable = true
+consumable = false
+
+[[item]]
+id = "health_potion"
+name = "Health Potion"
+description = "A small glass vial filled with glowing red liquid. It smells faintly of cherries and magic."
+weight = 0.3
+value = 25
+equippable = false
+consumable = true
+
+[[item]]
+id = "wooden_shield"
+name = "Wooden Shield"
+description = "A simple round shield made from oak planks bound with iron. Light and practical."
+weight = 2.5
+value = 20
+equippable = true
+consumable = false
+
+[[item]]
+id = "leather_armor"
+name = "Leather Armor"
+description = "Supple leather armor reinforced at critical points. Provides decent protection without restricting movement."
+weight = 5.0
+value = 75
+equippable = true
+consumable = false
+
+[[item]]
+id = "torch"
+name = "Torch"
+description = "A wooden stick wrapped in oil-soaked cloth. Provides light in dark places."
+weight = 0.5
+value = 5
+equippable = true
+consumable = false
+
+[[item]]
+id = "bread_loaf"
+name = "Loaf of Bread"
+description = "Fresh-baked bread, still warm. The crust is golden and crispy."
+weight = 0.4
+value = 3
+equippable = false
+consumable = true
+
+[[item]]
+id = "magic_ring"
+name = "Ring of Protection"
+description = "A silver ring inscribed with runes that glow faintly in the dark. You feel safer wearing it."
+weight = 0.1
+value = 200
+equippable = true
+consumable = false
+
+[[item]]
+id = "old_key"
+name = "Old Brass Key"
+description = "A tarnished brass key with an ornate bow. It looks like it might open something important."
+weight = 0.1
+value = 10
+equippable = false
+consumable = false
+
+[[item]]
+id = "gold_coin"
+name = "Gold Coin"
+description = "A shiny gold coin stamped with the king's profile. Universal currency."
+weight = 0.01
+value = 1
+equippable = false
+consumable = false

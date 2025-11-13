@@ -7,6 +7,8 @@ pub const stb_truetype = @import("stb_truetype.zig");
 pub const ui = @import("ui.zig");
 pub const ecs = @import("ecs.zig");
 pub const platform = @import("platform.zig");
+pub const data = @import("data.zig");
+pub const config = @import("config.zig");
 
 pub fn bufferedPrint() !void {
     // Stdout is for the actual output of your application, for example if you

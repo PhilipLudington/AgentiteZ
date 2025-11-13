@@ -1,0 +1,50 @@
+# rooms.toml
+# Room definitions for EtherMud
+# Each [[room]] section defines a location in the game world
+
+[[room]]
+id = "tavern"
+name = "The Rusty Tankard Tavern"
+description = "A cozy tavern filled with the scent of ale and roasted meat. Wooden tables are scattered around a crackling fireplace. The innkeeper stands behind a well-worn bar, polishing mugs."
+exit_north = "town_square"
+exit_east = "tavern_upstairs"
+
+[[room]]
+id = "town_square"
+name = "Town Square"
+description = "The bustling heart of the village. Cobblestone streets radiate out in all directions. A fountain gurgles in the center, and villagers hurry about their business."
+exit_south = "tavern"
+exit_north = "temple"
+exit_east = "market"
+exit_west = "blacksmith"
+
+[[room]]
+id = "temple"
+name = "Temple of Light"
+description = "A serene temple with high vaulted ceilings. Sunlight streams through stained glass windows, casting colorful patterns on the marble floor. The air smells of incense."
+exit_south = "town_square"
+
+[[room]]
+id = "market"
+name = "Market Street"
+description = "A busy marketplace with vendors hawking their wares. Colorful awnings shade stalls selling everything from fresh produce to exotic trinkets. The sound of bartering fills the air."
+exit_west = "town_square"
+exit_north = "merchant_shop"
+
+[[room]]
+id = "merchant_shop"
+name = "Merchant's Trading Post"
+description = "A well-stocked shop filled with goods from distant lands. Shelves groan under the weight of pottery, cloth, and mysterious artifacts. The merchant eyes you carefully."
+exit_south = "market"
+
+[[room]]
+id = "blacksmith"
+name = "Blacksmith's Forge"
+description = "The air shimmers with heat from the roaring forge. The rhythmic clanging of hammer on anvil echoes off the stone walls. Weapons and armor hang on display racks."
+exit_east = "town_square"
+
+[[room]]
+id = "tavern_upstairs"
+name = "Tavern - Guest Rooms"
+description = "A narrow hallway with several simple guest rooms. The wooden floorboards creak underfoot, and you can hear muffled conversation from the tavern below."
+exit_west = "tavern"

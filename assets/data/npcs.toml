@@ -1,0 +1,83 @@
+# npcs.toml
+# NPC (Non-Player Character) definitions for EtherMud
+# Each [[npc]] section defines a character that players can interact with
+
+[[npc]]
+id = "innkeeper_tom"
+name = "Tom the Innkeeper"
+description = "A portly man with a jovial face and a stained apron. His eyes twinkle with warmth and curiosity."
+greeting = "Welcome to The Rusty Tankard! What can I get ye? We've got the finest ale this side of the mountains!"
+friendly = true
+health = 80
+
+[[npc]]
+id = "blacksmith_greta"
+name = "Greta Ironforge"
+description = "A muscular woman with soot-stained hands and a no-nonsense demeanor. Her arms show the scars of many years at the forge."
+greeting = "Looking for quality steel? You've come to the right place. I don't do shoddy work."
+friendly = true
+health = 120
+
+[[npc]]
+id = "merchant_samir"
+name = "Samir the Merchant"
+description = "A well-dressed man with shrewd eyes and an easy smile. His fingers are adorned with expensive rings."
+greeting = "Ah, a customer! I have wares from the four corners of the world. What catches your eye?"
+friendly = true
+health = 60
+
+[[npc]]
+id = "priest_elara"
+name = "Priestess Elara"
+description = "A serene woman in flowing white robes. Her presence radiates calm and wisdom."
+greeting = "May the Light guide your path, traveler. How may I be of service?"
+friendly = true
+health = 70
+
+[[npc]]
+id = "guard_captain"
+name = "Captain Marcus"
+description = "A stern-faced guard in polished armor. His hand rests casually on his sword hilt."
+greeting = "Keep your nose clean in this town, stranger. We don't tolerate troublemakers."
+friendly = true
+health = 150
+
+[[npc]]
+id = "beggar_old_pete"
+name = "Old Pete"
+description = "A ragged old man sitting by the fountain. His clothes are threadbare and his eyes distant."
+greeting = "Spare a coin for an old soldier, friend? Times are hard..."
+friendly = true
+health = 40
+
+[[npc]]
+id = "mysterious_stranger"
+name = "Cloaked Stranger"
+description = "A figure shrouded in a dark hooded cloak. You cannot make out their face in the shadows."
+greeting = "I've been waiting for someone like you. We should talk... somewhere private."
+friendly = true
+health = 100
+
+[[npc]]
+id = "goblin_raider"
+name = "Goblin Raider"
+description = "A small, vicious creature with green skin and yellowed teeth. It clutches a crude dagger menacingly."
+greeting = "Grrr! Your gold or your life, human!"
+friendly = false
+health = 50
+
+[[npc]]
+id = "forest_bandit"
+name = "Forest Bandit"
+description = "A rough-looking human in leather armor. Their face is hidden behind a dirty bandana."
+greeting = "Hand over your valuables and nobody gets hurt!"
+friendly = false
+health = 80
+
+[[npc]]
+id = "ancient_wizard"
+name = "Aldric the Ancient"
+description = "An elderly wizard with a long white beard and robes covered in arcane symbols. His eyes glow with otherworldly knowledge."
+greeting = "Ah, a seeker of knowledge. I sensed your coming. The threads of fate are always interesting to observe."
+friendly = true
+health = 90
