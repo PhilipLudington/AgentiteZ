@@ -535,10 +535,7 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
         ctx.renderer.drawText(items[i], Vec2.init(text_x, text_y), text_size, Color.rgb(10, 10, 10));
     }
 
-    // End scissor for scroll list content
-    ctx.renderer.endScissor();
-
-    // Draw scrollbar if needed
+    // Draw scrollbar if needed (BEFORE ending scissor so it gets clipped too)
     if (total_height > visible_height) {
         const scrollbar_width: f32 = 8;
         const scrollbar_x = rect.x + rect.width - scrollbar_width - 2;
@@ -623,6 +620,12 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
             Color.rgb(180, 180, 180);
         ctx.renderer.drawRect(thumb_rect, thumb_color);
     }
+
+    // Flush the batch before ending scissor to ensure scrollbar is clipped
+    ctx.renderer.flushBatches();
+
+    // End scissor for scroll list content
+    ctx.renderer.endScissor();
 
     // Draw label above the list
     if (label_text.len > 0) {
