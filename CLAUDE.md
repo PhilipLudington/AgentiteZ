@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-EtherMud is a custom game engine built with Zig 0.15.1 that integrates SDL3 for windowing/input and bgfx for cross-platform 3D rendering. The engine currently provides a foundational rendering loop with a cornflower blue clear color.
+EtherMud is a custom game engine built with Zig 0.15.1 featuring:
+- **ECS Architecture** - Entity-Component-System with sparse-set storage and generation counters
+- **UI System** - 10 widget types with automatic layout and DPI scaling
+- **Rendering** - SDL3 + bgfx for cross-platform graphics (Metal/Vulkan/DirectX/OpenGL)
+- **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
 
 ## Build Commands
 
@@ -43,6 +47,8 @@ The project has two main modules:
    - `sdl` - SDL3 wrapper utilities
    - `bgfx` - bgfx rendering bindings
    - `stb_truetype` - TrueType font rendering
+   - `ui` - Complete UI system with widgets, layout, and DPI handling
+   - `ecs` - Entity-Component-System architecture
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the EtherMud module
 
@@ -135,6 +141,112 @@ _ = stb.initFont(&font_info, font_data.ptr, 0);
 
 const scale = stb.scaleForPixelHeight(&font_info, pixel_height);
 // Use font_info and scale to render glyphs...
+```
+
+### ECS (Entity-Component-System)
+
+The engine features a professional ECS architecture ported from StellarThroneZig:
+
+**Core Components:**
+- **Entity** (`src/ecs/entity.zig`) - Unique ID + generation counter for safe recycling
+- **ComponentArray** (`src/ecs/component.zig`) - Sparse-set storage for cache-friendly iteration
+- **System** (`src/ecs/system.zig`) - VTable-based polymorphic systems
+- **World** (`src/ecs/world.zig`) - Central coordinator for entities and systems
+
+**Key Features:**
+- **Generation Counters** - Prevents use-after-free with recycled entity IDs
+- **Sparse-Set Pattern** - O(1) component lookup, O(n) cache-optimal iteration
+- **Component Recycling** - Efficient memory reuse with free list
+- **System Registry** - Sequential execution in registration order
+
+**Usage Pattern:**
+```zig
+const ecs = @import("EtherMud").ecs;
+
+// Create world
+var world = ecs.World.init(allocator);
+defer world.deinit();
+
+// Create entities
+const player = try world.createEntity();
+const enemy = try world.createEntity();
+
+// Create component storage
+var positions = ecs.ComponentArray(Position).init(allocator);
+defer positions.deinit();
+
+// Add components
+try positions.add(player, .{ .x = 100, .y = 200 });
+try positions.add(enemy, .{ .x = 300, .y = 400 });
+
+// Iterate components (cache-friendly)
+var iter = positions.iterator();
+while (iter.next()) |entry| {
+    entry.component.x += 1; // Move right
+}
+
+// Register and update systems
+try world.registerSystem(ecs.System.init(&movement_system));
+try world.update(delta_time);
+```
+
+### UI Layout System
+
+Automatic widget positioning with the Layout system (`src/ui/layout.zig`):
+
+**Features:**
+- **Vertical/Horizontal** stacking
+- **Alignment** - start, center, end
+- **Spacing** - configurable gaps between widgets
+- **Padding** - container margins
+
+**Usage Pattern:**
+```zig
+const ui = @import("EtherMud").ui;
+
+// Create vertical layout with center alignment
+const panel_rect = ui.Rect.init(100, 100, 400, 600);
+var layout = ui.Layout.vertical(panel_rect, .center)
+    .withSpacing(10)
+    .withPadding(20);
+
+// Widgets auto-advance
+const button1_rect = layout.nextRect(150, 40);
+const button2_rect = layout.nextRect(150, 40);
+const button3_rect = layout.nextRect(150, 40);
+
+// Manual positioning
+const pos = layout.nextPosition(200, 50);
+layout.advance(200, 50);
+```
+
+### Virtual Resolution System
+
+Fixed 1920x1080 coordinate space (`src/ui/dpi.zig`):
+
+**Benefits:**
+- Resolution-independent game code
+- Automatic aspect-ratio preservation
+- Letterboxing on ultra-wide displays
+- Automatic mouse coordinate conversion
+
+**Usage Pattern:**
+```zig
+const ui = @import("EtherMud").ui;
+
+// Create from window info
+const window_info = ui.WindowInfo{
+    .width = window_width,
+    .height = window_height,
+    .dpi_scale = dpi_scale,
+};
+const render_scale = ui.RenderScale.init(window_info);
+
+// Convert mouse coordinates
+const virtual_mouse = render_scale.screenToVirtual(physical_x, physical_y);
+
+// All game code uses 1920x1080 coordinates
+ui.button(&ctx, "Click Me", ui.Rect.init(960, 540, 200, 50));
 ```
 
 ## Important Notes

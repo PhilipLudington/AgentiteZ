@@ -3,7 +3,19 @@ const EtherMud = @import("EtherMud");
 const sdl = EtherMud.sdl;
 const bgfx = EtherMud.bgfx;
 const ui = EtherMud.ui;
+const ecs = EtherMud.ecs;
 const c = sdl.c;
+
+// ECS demo components
+const Position = struct {
+    x: f32,
+    y: f32
+};
+
+const Velocity = struct {
+    x: f32,
+    y: f32
+};
 
 // Widget demo state
 const DemoState = struct {
@@ -108,7 +120,33 @@ pub fn main() !void {
     // Enable text input
     _ = c.SDL_StartTextInput(window);
 
+    // Initialize ECS demo
+    var ecs_world = ecs.World.init(allocator);
+    defer ecs_world.deinit();
+
+    var positions = ecs.ComponentArray(Position).init(allocator);
+    defer positions.deinit();
+
+    var velocities = ecs.ComponentArray(Velocity).init(allocator);
+    defer velocities.deinit();
+
+    // Create 5 demo entities with random positions and velocities
+    // Panel is at 1250,410 with size 400x200, so entities should be in range:
+    // X: 1270-1630 (with 20px margin), Y: 470-590 (with margin for labels)
+    var i: usize = 0;
+    while (i < 5) : (i += 1) {
+        const entity = try ecs_world.createEntity();
+        const base_x = 1300.0 + @as(f32, @floatFromInt(i)) * 50.0;
+        const base_y = 490.0 + @as(f32, @floatFromInt(i % 3)) * 25.0;
+        try positions.add(entity, Position{ .x = base_x, .y = base_y });
+
+        const vel_x = 1.0 + @as(f32, @floatFromInt(i)) * 0.3;
+        const vel_y = 0.5 - @as(f32, @floatFromInt(i % 2)) * 1.0;
+        try velocities.add(entity, Velocity{ .x = vel_x, .y = vel_y });
+    }
+
     std.debug.print("UI Demo initialized! Press ESC to exit.\n", .{});
+    std.debug.print("ECS: {d} entities created\n", .{ecs_world.entityCount()});
 
     // Main event loop
     var running = true;
@@ -184,6 +222,30 @@ pub fn main() !void {
         input.text_input = text_input_buf[0..text_input_len];
         input.key_pressed = if (backspace_pressed) ui.Key.backspace else null;
 
+        // Update ECS entities
+        var pos_iter = positions.iterator();
+        while (pos_iter.next()) |entry| {
+            if (velocities.get(entry.entity)) |vel| {
+                entry.component.x += vel.x;
+                entry.component.y += vel.y;
+
+                // Bounce off boundaries (panel area with margins)
+                const bounds_x_min: f32 = 1270;
+                const bounds_x_max: f32 = 1630;
+                const bounds_y_min: f32 = 470;
+                const bounds_y_max: f32 = 590;
+
+                if (entry.component.x < bounds_x_min or entry.component.x > bounds_x_max) {
+                    vel.x *= -1;
+                    entry.component.x = @max(bounds_x_min, @min(bounds_x_max, entry.component.x));
+                }
+                if (entry.component.y < bounds_y_min or entry.component.y > bounds_y_max) {
+                    vel.y *= -1;
+                    entry.component.y = @max(bounds_y_min, @min(bounds_y_max, entry.component.y));
+                }
+            } else |_| {}
+        }
+
         // Set view 0 (main UI) to cover the entire window
         bgfx.setViewRect(0, 0, 0, @intCast(window_width), @intCast(window_height));
 
@@ -210,8 +272,8 @@ pub fn main() !void {
         ctx.beginFrame(input);
 
         // Draw title
-        ui.label(&ctx, "EtherMud UI Widget Demo", .{ .x = 20, .y = 20 }, 24, ui.Color.white);
-        ui.label(&ctx, "Showcasing all widget types", .{ .x = 20, .y = 50 }, 14, ui.Color.gray);
+        ui.label(&ctx, "EtherMud Engine Demo", .{ .x = 20, .y = 20 }, 24, ui.Color.white);
+        ui.label(&ctx, "UI Widgets + ECS + Layout System + Virtual Resolution", .{ .x = 20, .y = 50 }, 14, ui.Color.gray);
 
         // Set cursor for auto-layout
         ctx.cursor = .{ .x = 20, .y = 90 };
@@ -320,6 +382,7 @@ pub fn main() !void {
         const panel_rect = ui.Rect.init(800, 90, 400, 300);
         try ui.beginPanel(&ctx, "Info Panel", panel_rect, ui.Color.panel_bg);
 
+        ctx.cursor.y += 5;  // Add spacing after panel header
         ui.label(&ctx, "This is a panel!", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 16, ui.Color.white);
         ctx.cursor.y += 25;
 
@@ -330,6 +393,115 @@ pub fn main() !void {
         ctx.cursor.y += 30;
 
         _ = ui.buttonAuto(&ctx, "Panel Button", 150, 30);
+
+        ui.endPanel(&ctx);
+
+        // === NEW: Layout System Demo ===
+        const layout_panel_rect = ui.Rect.init(1250, 90, 400, 300);
+        try ui.beginPanel(&ctx, "Layout System (NEW!)", layout_panel_rect, ui.Color.panel_bg);
+
+        ctx.cursor.y += 5;  // Add spacing after panel header
+        ui.label(&ctx, "Automatic widget positioning:", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 14, ui.Color.white);
+        ctx.cursor.y += 25;
+
+        // Create vertical layout with center alignment
+        var layout = ui.Layout.vertical(
+            ui.Rect.init(ctx.cursor.x, ctx.cursor.y, 360, 200),
+            .center  // Center-aligned
+        ).withSpacing(10).withPadding(5);
+
+        // Auto-positioned buttons - no manual coordinates!
+        _ = ui.button(&ctx, "Auto Button 1", layout.nextRect(200, 35));
+        _ = ui.button(&ctx, "Auto Button 2", layout.nextRect(200, 35));
+        _ = ui.button(&ctx, "Auto Button 3", layout.nextRect(200, 35));
+
+        ui.label(&ctx, "No manual Y coordinates!",
+            .{ .x = layout.rect.x + 90, .y = layout.cursor.y + 10 },
+            12, ui.Color.imperial_gold);
+
+        ui.endPanel(&ctx);
+
+        // === NEW: ECS System Demo ===
+        const ecs_panel_rect = ui.Rect.init(1250, 410, 400, 200);
+        try ui.beginPanel(&ctx, "ECS System (NEW!)", ecs_panel_rect, ui.Color.panel_bg);
+
+        ctx.cursor.y += 5;  // Add spacing after panel header
+
+        // Show ECS stats
+        var ecs_buf: [128]u8 = undefined;
+        const ecs_info = std.fmt.bufPrint(&ecs_buf,
+            "Entities: {d} | Components: {d}",
+            .{ ecs_world.entityCount(), positions.count() }
+        ) catch "ECS Info";
+
+        ui.label(&ctx, ecs_info, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 14, ui.Color.white);
+        ctx.cursor.y += 25;
+
+        ui.label(&ctx, "Moving entities with Position + Velocity:",
+            .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.gray);
+
+        // Draw moving entities as colored dots
+        pos_iter = positions.iterator();
+        const entity_colors = [_]ui.Color{
+            ui.Color.init(255, 100, 100, 255),  // Red
+            ui.Color.init(100, 255, 100, 255),  // Green
+            ui.Color.init(100, 100, 255, 255),  // Blue
+            ui.Color.init(255, 255, 100, 255),  // Yellow
+            ui.Color.init(255, 100, 255, 255),  // Magenta
+        };
+        var entity_idx: usize = 0;
+        while (pos_iter.next()) |entry| : (entity_idx += 1) {
+            const dot_size: f32 = 12;  // Bigger for visibility
+            const dot_rect = ui.Rect.init(
+                entry.component.x - dot_size / 2,
+                entry.component.y - dot_size / 2,
+                dot_size,
+                dot_size
+            );
+            // Draw entity as colored square
+            ctx.renderer.drawRect(dot_rect, entity_colors[entity_idx % entity_colors.len]);
+        }
+
+        ui.endPanel(&ctx);
+
+        // === NEW: Virtual Resolution Info ===
+        const virt_panel_rect = ui.Rect.init(1250, 630, 400, 140);
+        try ui.beginPanel(&ctx, "Virtual Resolution (1920x1080)", virt_panel_rect, ui.Color.panel_bg);
+
+        ctx.cursor.y += 5;  // Add spacing after panel header
+
+        const render_scale = ui.RenderScale.init(window_info);
+
+        var virt_buf1: [128]u8 = undefined;
+        const virt_line1 = std.fmt.bufPrint(&virt_buf1,
+            "Physical: {d}x{d} px",
+            .{ window_width, window_height }
+        ) catch "Info";
+        ui.label(&ctx, virt_line1, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.white);
+        ctx.cursor.y += 20;
+
+        var virt_buf2: [128]u8 = undefined;
+        const virt_line2 = std.fmt.bufPrint(&virt_buf2,
+            "Scale: {d:.2}x | DPI: {d:.2}x",
+            .{ render_scale.scale, dpi_scale }
+        ) catch "Info";
+        ui.label(&ctx, virt_line2, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.white);
+        ctx.cursor.y += 20;
+
+        var virt_buf3: [128]u8 = undefined;
+        const virt_line3 = std.fmt.bufPrint(&virt_buf3,
+            "Viewport: {d}x{d} px",
+            .{ render_scale.viewport_width, render_scale.viewport_height }
+        ) catch "Info";
+        ui.label(&ctx, virt_line3, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.white);
+        ctx.cursor.y += 20;
+
+        var virt_buf4: [128]u8 = undefined;
+        const virt_line4 = std.fmt.bufPrint(&virt_buf4,
+            "Offset: ({d:.0}, {d:.0}) px",
+            .{ render_scale.offset_x, render_scale.offset_y }
+        ) catch "Info";
+        ui.label(&ctx, virt_line4, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.gray);
 
         ui.endPanel(&ctx);
 

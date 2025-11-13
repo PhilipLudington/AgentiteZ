@@ -6,6 +6,7 @@ pub const renderer = @import("ui/renderer.zig");
 pub const context = @import("ui/context.zig");
 pub const widgets = @import("ui/widgets.zig");
 pub const dpi = @import("ui/dpi.zig");
+pub const layout = @import("ui/layout.zig");
 pub const renderer_2d_proper = @import("ui/renderer_2d_proper.zig");
 pub const config = @import("ui/config.zig");
 
@@ -22,6 +23,11 @@ pub const Key = types.Key;
 pub const WindowInfo = dpi.WindowInfo;
 pub const DpiConfig = dpi.DpiConfig;
 pub const RenderScale = dpi.RenderScale;
+
+// Re-export Layout types
+pub const Layout = layout.Layout;
+pub const LayoutDirection = layout.LayoutDirection;
+pub const LayoutAlign = layout.LayoutAlign;
 
 // Re-export UI components
 pub const Context = context.Context;

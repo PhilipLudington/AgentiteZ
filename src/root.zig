@@ -5,6 +5,7 @@ pub const sdl = @import("sdl.zig");
 pub const bgfx = @import("bgfx.zig");
 pub const stb_truetype = @import("stb_truetype.zig");
 pub const ui = @import("ui.zig");
+pub const ecs = @import("ecs.zig");
 
 pub fn bufferedPrint() !void {
     // Stdout is for the actual output of your application, for example if you
