@@ -206,13 +206,8 @@ pub fn main() !void {
         ui.label(&ctx, "Buttons:", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 18, ui.Color.white);
         ctx.cursor.y += 25;
 
-        if (ui.buttonAuto(&ctx, "Click Me!", 150, 35)) {
-            std.debug.print("Button clicked!\n", .{});
-        }
-
-        if (ui.buttonAuto(&ctx, "Another Button", 150, 35)) {
-            std.debug.print("Another button clicked!\n", .{});
-        }
+        _ = ui.buttonAuto(&ctx, "Click Me!", 150, 35);
+        _ = ui.buttonAuto(&ctx, "Another Button", 150, 35);
 
         ctx.cursor.y += 15;
 
@@ -320,9 +315,7 @@ pub fn main() !void {
         ui.label(&ctx, "with automatic layout.", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.gray);
         ctx.cursor.y += 30;
 
-        if (ui.buttonAuto(&ctx, "Panel Button", 150, 30)) {
-            std.debug.print("Panel button clicked!\n", .{});
-        }
+        _ = ui.buttonAuto(&ctx, "Panel Button", 150, 30);
 
         ui.endPanel(&ctx);
 

@@ -363,10 +363,6 @@ pub const Renderer2DProper = struct {
             .height = @floatFromInt(self.window_height),
         };
         self.scissor_enabled = true;
-        std.debug.print("beginFrame: scissor = full window ({}x{})\n", .{
-            self.window_width,
-            self.window_height,
-        });
     }
 
     /// End frame - flush batches
@@ -378,14 +374,6 @@ pub const Renderer2DProper = struct {
     /// Flush colored draw batch to GPU
     fn flushColorBatch(self: *Renderer2DProper) void {
         if (self.color_batch.vertices.items.len == 0) return;
-
-        std.debug.print("    flushColorBatch: {d} vertices, scissor=({d:.0},{d:.0}) {d:.0}x{d:.0}\n", .{
-            self.color_batch.vertices.items.len,
-            self.scissor_rect.x,
-            self.scissor_rect.y,
-            self.scissor_rect.width,
-            self.scissor_rect.height,
-        });
 
         // Allocate transient buffers
         var tvb: bgfx.TransientVertexBuffer = undefined;
@@ -458,7 +446,6 @@ pub const Renderer2DProper = struct {
         _ = bgfx.submit(self.view_id, self.shader_programs.color_program, 0, bgfx.DiscardFlags_All);
 
         // Clear the batch after submitting
-        std.debug.print("    CLEARING color batch\n", .{});
         self.color_batch.clear();
     }
 
@@ -637,8 +624,6 @@ pub const Renderer2DProper = struct {
 
     /// Begin scissor
     pub fn beginScissor(self: *Renderer2DProper, rect: Rect) void {
-        std.debug.print("  beginScissor: ({d:.0}, {d:.0}) {d:.0}x{d:.0}\n", .{rect.x, rect.y, rect.width, rect.height});
-
         // Flush current batches before changing scissor
         self.flushColorBatch();
         self.flushTextureBatch();
@@ -650,8 +635,6 @@ pub const Renderer2DProper = struct {
 
     /// End scissor - resets to full window bounds
     pub fn endScissor(self: *Renderer2DProper) void {
-        std.debug.print("  endScissor: resetting to full window\n", .{});
-
         // CRITICAL: Do NOT flush here - just change the scissor state
         // The caller should flush before calling endScissor if needed
         // This allows the next draw operations to use the full window scissor
@@ -676,13 +659,11 @@ pub const Renderer2DProper = struct {
 
     /// Switch to overlay view (for dropdowns, tooltips, modals)
     pub fn pushOverlayView(self: *Renderer2DProper) void {
-        std.debug.print("  PUSH OVERLAY VIEW\n", .{});
         self.view_id = self.overlay_view_id;
     }
 
     /// Switch back to default view
     pub fn popOverlayView(self: *Renderer2DProper) void {
-        std.debug.print("  POP OVERLAY VIEW\n", .{});
         self.view_id = self.default_view_id;
     }
 

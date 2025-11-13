@@ -364,7 +364,6 @@ pub fn dropdown(ctx: *Context, label_text: []const u8, rect: Rect, options: []co
     // Toggle dropdown on header click
     if (header_clicked) {
         state.is_open = !state.is_open;
-        std.debug.print("DROPDOWN: Toggled to {}\n", .{state.is_open});
     }
 
     // Draw header background
@@ -402,13 +401,6 @@ pub fn dropdown(ctx: *Context, label_text: []const u8, rect: Rect, options: []co
             .width = rect.width,
             .height = @as(f32, @floatFromInt(options.len)) * item_height,
         };
-
-        std.debug.print("DROPDOWN: Queueing dropdown overlay at ({d:.0},{d:.0}) {d:.0}x{d:.0}\n", .{
-            list_rect.x,
-            list_rect.y,
-            list_rect.width,
-            list_rect.height,
-        });
 
         // Queue the dropdown list for deferred rendering
         ctx.dropdown_overlays.append(ctx.allocator, .{
