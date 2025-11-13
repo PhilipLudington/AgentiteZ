@@ -4,6 +4,7 @@ const sdl = EtherMud.sdl;
 const bgfx = EtherMud.bgfx;
 const ui = EtherMud.ui;
 const ecs = EtherMud.ecs;
+const platform = EtherMud.platform;
 const c = sdl.c;
 
 // ECS demo components
@@ -148,29 +149,20 @@ pub fn main() !void {
     std.debug.print("UI Demo initialized! Press ESC to exit.\n", .{});
     std.debug.print("ECS: {d} entities created\n", .{ecs_world.entityCount()});
 
+    // Initialize input state
+    var input_state = platform.InputState.init(allocator);
+    defer input_state.deinit();
+
     // Main event loop
     var running = true;
     var event: c.SDL_Event = undefined;
     var frame: u32 = 0;
 
     while (running) {
-        // Build input state for UI
-        var input = ui.InputState.init();
-        var mouse_x: f32 = 0;
-        var mouse_y: f32 = 0;
-        const mouse_state = c.SDL_GetMouseState(&mouse_x, &mouse_y);
-        input.mouse_pos = .{ .x = mouse_x, .y = mouse_y };
-        input.mouse_down = (mouse_state & c.SDL_BUTTON_LMASK) != 0;
+        // Begin frame - clear transient input states
+        input_state.beginFrame();
 
-        // Track if mouse was clicked or released this frame
-        var mouse_clicked = false;
-        var mouse_released = false;
-        var mouse_wheel: f32 = 0;
-        var text_input_buf: [32]u8 = undefined;
-        var text_input_len: usize = 0;
-        var backspace_pressed = false;
-
-        // Poll events
+        // Poll events and update input state
         while (c.SDL_PollEvent(&event)) {
             switch (event.type) {
                 c.SDL_EVENT_QUIT => {
@@ -179,18 +171,6 @@ pub fn main() !void {
                 c.SDL_EVENT_KEY_DOWN => {
                     if (event.key.key == c.SDLK_ESCAPE) {
                         running = false;
-                    } else if (event.key.key == c.SDLK_BACKSPACE) {
-                        backspace_pressed = true;
-                    }
-                },
-                c.SDL_EVENT_TEXT_INPUT => {
-                    // In SDL3, event.text.text is a pointer to a null-terminated string
-                    if (event.text.text) |text_ptr| {
-                        const text_len = std.mem.len(text_ptr);
-                        if (text_len > 0 and text_input_len + text_len < text_input_buf.len) {
-                            @memcpy(text_input_buf[text_input_len..][0..text_len], text_ptr[0..text_len]);
-                            text_input_len += text_len;
-                        }
                     }
                 },
                 c.SDL_EVENT_WINDOW_RESIZED => {
@@ -199,28 +179,15 @@ pub fn main() !void {
                     bgfx.reset(@intCast(window_width), @intCast(window_height), bgfx.ResetFlags_Vsync, bgfx.TextureFormat.Count);
                     renderer_2d.updateWindowSize(@intCast(window_width), @intCast(window_height));
                 },
-                c.SDL_EVENT_MOUSE_BUTTON_DOWN => {
-                    if (event.button.button == c.SDL_BUTTON_LEFT) {
-                        mouse_clicked = true;
-                    }
-                },
-                c.SDL_EVENT_MOUSE_BUTTON_UP => {
-                    if (event.button.button == c.SDL_BUTTON_LEFT) {
-                        mouse_released = true;
-                    }
-                },
-                c.SDL_EVENT_MOUSE_WHEEL => {
-                    mouse_wheel = event.wheel.y;
-                },
                 else => {},
             }
+
+            // Let InputState handle the event
+            try input_state.handleEvent(&event);
         }
 
-        input.mouse_clicked = mouse_clicked;
-        input.mouse_released = mouse_released;
-        input.mouse_wheel = mouse_wheel;
-        input.text_input = text_input_buf[0..text_input_len];
-        input.key_pressed = if (backspace_pressed) ui.Key.backspace else null;
+        // Convert to UI InputState for widgets
+        const input = input_state.toUIInputState();
 
         // Update ECS entities
         var pos_iter = positions.iterator();
@@ -502,6 +469,121 @@ pub fn main() !void {
             .{ render_scale.offset_x, render_scale.offset_y }
         ) catch "Info";
         ui.label(&ctx, virt_line4, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.gray);
+
+        ui.endPanel(&ctx);
+
+        // === NEW: Input State Demo ===
+        const input_panel_rect = ui.Rect.init(800, 410, 400, 270);
+        try ui.beginPanel(&ctx, "Input State (NEW!)", input_panel_rect, ui.Color.panel_bg);
+
+        ctx.cursor.y += 5;  // Add spacing after panel header
+
+        // Mouse position
+        const mouse_pos = input_state.getMousePosition();
+        var mouse_buf: [128]u8 = undefined;
+        const mouse_line = std.fmt.bufPrint(&mouse_buf,
+            "Mouse: ({d:.0}, {d:.0})",
+            .{ mouse_pos.x, mouse_pos.y }
+        ) catch "Mouse Info";
+        ui.label(&ctx, mouse_line, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.white);
+        ctx.cursor.y += 20;
+
+        // Mouse buttons - show state with color
+        var mouse_btn_buf: [128]u8 = undefined;
+        const left_state = if (input_state.isMouseButtonPressed())
+            "PRESSED"
+        else if (input_state.isMouseButtonDown())
+            "DOWN"
+        else
+            "up";
+        const left_color = if (input_state.isMouseButtonPressed())
+            ui.Color.init(255, 200, 100, 255)  // Orange for pressed
+        else if (input_state.isMouseButtonDown())
+            ui.Color.init(100, 255, 100, 255)  // Green for down
+        else
+            ui.Color.gray;  // Gray for up
+
+        const mouse_btn_line = std.fmt.bufPrint(&mouse_btn_buf,
+            "Left: {s} | Right: {s} | Middle: {s}",
+            .{
+                left_state,
+                if (input_state.isMouseRightButtonDown()) "DOWN" else "up",
+                if (input_state.isMouseMiddleButtonDown()) "DOWN" else "up"
+            }
+        ) catch "Button Info";
+        ui.label(&ctx, mouse_btn_line, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, left_color);
+        ctx.cursor.y += 20;
+
+        // Mouse wheel
+        const wheel = input_state.getMouseWheelMove();
+        var wheel_buf: [128]u8 = undefined;
+        const wheel_line = std.fmt.bufPrint(&wheel_buf,
+            "Wheel: {d:.1}",
+            .{ wheel }
+        ) catch "Wheel Info";
+        const wheel_color = if (wheel != 0)
+            ui.Color.init(255, 200, 100, 255)  // Orange when moving
+        else
+            ui.Color.gray;
+        ui.label(&ctx, wheel_line, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, wheel_color);
+        ctx.cursor.y += 25;
+
+        // Keyboard - show some common keys
+        ui.label(&ctx, "Keyboard (press keys to test):", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.white);
+        ctx.cursor.y += 20;
+
+        const test_keys = [_]struct { key: ui.Key, name: []const u8 }{
+            .{ .key = .escape, .name = "ESC" },
+            .{ .key = .enter, .name = "ENTER" },
+            .{ .key = .tab, .name = "TAB" },
+            .{ .key = .backspace, .name = "BKSP" },
+        };
+
+        // Display keys in a row
+        const key_start_x = ctx.cursor.x;
+        for (test_keys) |test_key| {
+            const key_color = if (input_state.isKeyPressed(test_key.key))
+                ui.Color.init(255, 200, 100, 255)  // Orange when pressed
+            else if (input_state.isKeyDown(test_key.key))
+                ui.Color.init(100, 255, 100, 255)  // Green when down
+            else
+                ui.Color.gray;  // Gray when up
+
+            ui.label(&ctx, test_key.name, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 11, key_color);
+            ctx.cursor.x += 85;
+        }
+        ctx.cursor.x = key_start_x;
+        ctx.cursor.y += 20;
+
+        // Arrow keys
+        const arrow_keys = [_]struct { key: ui.Key, name: []const u8 }{
+            .{ .key = .left, .name = "LEFT" },
+            .{ .key = .right, .name = "RIGHT" },
+            .{ .key = .home, .name = "HOME" },
+            .{ .key = .end, .name = "END" },
+        };
+
+        for (arrow_keys) |test_key| {
+            const key_color = if (input_state.isKeyPressed(test_key.key))
+                ui.Color.init(255, 200, 100, 255)
+            else if (input_state.isKeyDown(test_key.key))
+                ui.Color.init(100, 255, 100, 255)
+            else
+                ui.Color.gray;
+
+            ui.label(&ctx, test_key.name, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 11, key_color);
+            ctx.cursor.x += 85;
+        }
+
+        ctx.cursor.x = key_start_x;
+        ctx.cursor.y += 25;
+
+        // Instructions
+        ui.label(&ctx, "Orange = Pressed (1 frame)",
+            .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 10, ui.Color.init(255, 200, 100, 255));
+        ctx.cursor.y += 15;
+        ui.label(&ctx, "Green = Down (held)",
+            .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 10, ui.Color.init(100, 255, 100, 255));
 
         ui.endPanel(&ctx);
 
