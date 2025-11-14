@@ -630,7 +630,12 @@ pub const Renderer2D = struct {
             if (char >= 256) continue; // Skip non-ASCII
 
             const glyph = &atlas.glyphs[char];
-            if (glyph.width == 0 or glyph.height == 0) continue; // Skip empty glyphs
+
+            // Skip rendering invisible glyphs (like space), but still advance cursor
+            if (glyph.width == 0 or glyph.height == 0) {
+                cursor_x += glyph.advance * scale;
+                continue;
+            }
 
             // Calculate quad position and size
             const x0 = cursor_x + glyph.offset_x * scale;
@@ -697,6 +702,24 @@ pub const Renderer2D = struct {
 
     /// Measure text size
     pub fn measureText(self: *Renderer2D, text: []const u8, font_size: f32) Vec2 {
+        // Use external font atlas if available, otherwise fall back to internal
+        if (self.external_font_atlas) |atlas| {
+            return self.measureTextWithNewAtlas(atlas, text, font_size);
+        } else {
+            return self.measureTextWithOldAtlas(text, font_size);
+        }
+    }
+
+    /// Measure text size using new optimized font atlas
+    fn measureTextWithNewAtlas(self: *Renderer2D, atlas: *const FontAtlasModule.FontAtlas, text: []const u8, font_size: f32) Vec2 {
+        _ = self;
+        const width = atlas.measureText(text);
+        const scale = font_size / atlas.font_size;
+        return Vec2.init(width * scale, atlas.line_height * scale);
+    }
+
+    /// Measure text size using old embedded font atlas (legacy)
+    fn measureTextWithOldAtlas(self: *Renderer2D, text: []const u8, font_size: f32) Vec2 {
         const scale = font_size / self.font_atlas.font_size;
         var width: f32 = 0;
 
