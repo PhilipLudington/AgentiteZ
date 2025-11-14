@@ -263,6 +263,77 @@ pub fn build(b: *std.Build) void {
     run_minimal_cmd.step.dependOn(b.getInstallStep());
     run_minimal_step.dependOn(&run_minimal_cmd.step);
 
+    // === demo_ui executable (full widget showcase) ===
+    const demo_ui_exe = b.addExecutable(.{
+        .name = "demo_ui",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/demo_ui.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "EtherMud", .module = mod },
+            },
+        }),
+    });
+
+    // Link the same libraries as main exe
+    demo_ui_exe.linkSystemLibrary("SDL3");
+    demo_ui_exe.linkLibC();
+    demo_ui_exe.linkLibCpp();
+
+    // Add bgfx and dependencies (same as main exe)
+    demo_ui_exe.addCSourceFile(.{
+        .file = b.path("external/bx/src/amalgamated.cpp"),
+        .flags = &bgfx_flags,
+    });
+    demo_ui_exe.addIncludePath(b.path("external/bx/include"));
+    demo_ui_exe.addIncludePath(b.path("external/bx/3rdparty"));
+
+    demo_ui_exe.addCSourceFiles(.{
+        .files = &[_][]const u8{
+            "external/bimg/src/image.cpp",
+            "external/bimg/src/image_gnf.cpp",
+        },
+        .flags = &bgfx_flags,
+    });
+    demo_ui_exe.addIncludePath(b.path("external/bimg/include"));
+    demo_ui_exe.addIncludePath(b.path("external/bimg/3rdparty"));
+    demo_ui_exe.addIncludePath(b.path("external/bimg/3rdparty/astc-encoder/include"));
+    demo_ui_exe.addIncludePath(b.path("external/bimg/3rdparty/iqa/include"));
+
+    if (is_macos) {
+        demo_ui_exe.addCSourceFile(.{
+            .file = b.path("external/bgfx/src/amalgamated.mm"),
+            .flags = &bgfx_flags,
+        });
+        demo_ui_exe.linkFramework("Metal");
+        demo_ui_exe.linkFramework("QuartzCore");
+        demo_ui_exe.linkFramework("Cocoa");
+        demo_ui_exe.linkFramework("IOKit");
+    } else {
+        demo_ui_exe.addCSourceFile(.{
+            .file = b.path("external/bgfx/src/amalgamated.cpp"),
+            .flags = &bgfx_flags,
+        });
+    }
+    demo_ui_exe.addIncludePath(b.path("external/bgfx/include"));
+    demo_ui_exe.addIncludePath(b.path("external/bgfx/3rdparty"));
+    demo_ui_exe.addIncludePath(b.path("external/bgfx/3rdparty/khronos"));
+
+    demo_ui_exe.addIncludePath(b.path("external/stb"));
+    demo_ui_exe.addCSourceFile(.{
+        .file = b.path("src/stb_truetype_wrapper.c"),
+        .flags = &.{"-std=c99"},
+    });
+
+    b.installArtifact(demo_ui_exe);
+
+    // Run step for demo_ui
+    const run_demo_step = b.step("run-demo", "Run the full UI widget showcase");
+    const run_demo_cmd = b.addRunArtifact(demo_ui_exe);
+    run_demo_cmd.step.dependOn(b.getInstallStep());
+    run_demo_step.dependOn(&run_demo_cmd.step);
+
     // Creates an executable that will run `test` blocks from the provided module.
     // Here `mod` needs to define a target, which is why earlier we made sure to
     // set the releative field.

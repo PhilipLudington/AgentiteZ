@@ -501,15 +501,21 @@ pub const FontAtlas = struct {
         log.info("Renderer", "Loading font '{s}' at {d:.1}px (SDF MODE)", .{ font_path, font_size });
         log.info("Renderer", "Scale={d:.4}, Ascent={d}, Descent={d}, LineHeight={d:.2}", .{ scale, ascent, descent, line_height });
 
-        // SDF parameters
-        // For high-quality SDF, we need to render at a larger size
-        // The SDF algorithm works better with more pixels to encode distance information
-        const sdf_render_size = font_size * 3.0; // Render at 3x the target size for better quality
-        const sdf_scale = stb.scaleForPixelHeight(&font_info, sdf_render_size);
+        // SDF parameters (optimized for quality based on Grok/community recommendations)
+        // Key: sdf_size (render size) should be 32-64 for optimal quality
+        // Higher = better for large text, but trade-off for small text
+        const sdf_size: f32 = 48.0; // Base SDF generation size (32-64 range recommended)
+        const sdf_scale = stb.scaleForPixelHeight(&font_info, sdf_size);
 
-        const padding: c_int = 8; // Extra pixels around each glyph for distance field
-        const onedge_value: u8 = 128; // Value representing the edge (0-255)
-        const pixel_dist_scale: f32 = 32.0; // Distance scale for SDF (lower = softer edges)
+        // Optimal padding: 5-8 pixels for ±5px distance range
+        const padding: c_int = 6; // Extra pixels around each glyph for distance field
+
+        // onedge_value: 180 provides better edge definition than 128
+        const onedge_value: u8 = 180; // Value representing the edge (0-255)
+
+        // pixel_dist_scale: Maps ±padding range to 0-255 optimally
+        // Formula: 180.0 / padding = 180.0 / 6.0 = 30.0
+        const pixel_dist_scale: f32 = 30.0; // Distance scale for SDF (~180/padding)
 
         // Calculate atlas size for SDF
         // SDF glyphs are larger due to padding, so we need more space
@@ -567,8 +573,18 @@ pub const FontAtlas = struct {
                 &yoff,
             );
 
+            // For invisible glyphs (like space), we still need the advance metric
+            // Get advance width even if bitmap is empty
+            var advance: c_int = undefined;
+            var lsb: c_int = undefined;
+            stb.getCodepointHMetrics(&font_info, char, &advance, &lsb);
+
+            // Calculate correct advance using target font size, not SDF rendering size
+            const target_scale = stb.scaleForPixelHeight(&font_info, font_size);
+            const advance_pixels = @as(f32, @floatFromInt(advance)) * target_scale;
+
             if (sdf_bitmap == null or width == 0 or height == 0) {
-                // Missing glyph - create empty entry
+                // Missing or invisible glyph (like space) - store advance but no bitmap
                 glyphs[glyph_idx] = Glyph{
                     .uv_x0 = 0,
                     .uv_y0 = 0,
@@ -578,9 +594,18 @@ pub const FontAtlas = struct {
                     .offset_y = 0,
                     .width = 0,
                     .height = 0,
-                    .advance = 0,
+                    .advance = advance_pixels, // CRITICAL: Use actual advance for spacing!
                 };
+
+                // Debug: Print space character advance
+                if (char == 32) {
+                    log.info("Renderer", "Space character: advance_raw={d}, scale={d:.4}, advance_pixels={d:.2}", .{ advance, scale, advance_pixels });
+                }
+
                 missing_count += 1;
+                if (sdf_bitmap != null) {
+                    stb.freeSDFBitmap(sdf_bitmap, null);
+                }
                 continue;
             }
             defer stb.freeSDFBitmap(sdf_bitmap, null);
@@ -603,12 +628,7 @@ pub const FontAtlas = struct {
                 }
             }
 
-            // Get glyph metrics for advance
-            var advance: c_int = undefined;
-            var lsb: c_int = undefined;
-            stb.getCodepointHMetrics(&font_info, char, &advance, &lsb);
-
-            // Calculate UV coordinates
+            // Calculate UV coordinates (advance already retrieved earlier)
             const uv_x0 = @as(f32, @floatFromInt(atlas_x)) / @as(f32, @floatFromInt(atlas_width));
             const uv_y0 = if (flip_uv)
                 @as(f32, @floatFromInt(atlas_y + height)) / @as(f32, @floatFromInt(atlas_height))
@@ -621,9 +641,9 @@ pub const FontAtlas = struct {
             else
                 @as(f32, @floatFromInt(atlas_y + height)) / @as(f32, @floatFromInt(atlas_height));
 
-            // Scale glyph metrics back down to target font size
-            // We rendered at 3x size for better SDF quality, but need metrics at 1x
-            const scale_down = font_size / sdf_render_size;
+            // Scale glyph metrics to target font size
+            // We rendered at sdf_size for better SDF quality, scale metrics to font_size
+            const scale_down = font_size / sdf_size;
 
             glyphs[glyph_idx] = Glyph{
                 .uv_x0 = uv_x0,
@@ -634,7 +654,7 @@ pub const FontAtlas = struct {
                 .offset_y = @as(f32, @floatFromInt(yoff)) * scale_down,
                 .width = @as(f32, @floatFromInt(width)) * scale_down,
                 .height = @as(f32, @floatFromInt(height)) * scale_down,
-                .advance = @as(f32, @floatFromInt(advance)) * scale,
+                .advance = advance_pixels, // Use target font size scale, not SDF render scale
             };
 
             rendered_count += 1;
@@ -652,9 +672,10 @@ pub const FontAtlas = struct {
         log.info("Renderer", "SDF atlas size {d}x{d}", .{ atlas_width, atlas_height });
 
         // Create bgfx texture (R8 format for single-channel SDF)
-        // CRITICAL: Use default filtering (bilinear) for smooth SDF rendering
-        // Point filtering would make SDF look pixelated
-        const texture_flags = bgfx.SamplerFlags_UClamp | bgfx.SamplerFlags_VClamp;
+        // CRITICAL: Use POINT sampling for SDF atlas (per Grok recommendation)
+        // The shader will handle smooth filtering via fwidth() antialiasing
+        // NO linear/mips on SDF atlas texture itself
+        const texture_flags = bgfx.SamplerFlags_UClamp | bgfx.SamplerFlags_VClamp | bgfx.SamplerFlags_Point;
         const mem = bgfx.copy(atlas_bitmap.ptr, @intCast(atlas_bitmap.len));
         const texture = bgfx.createTexture2D(
             @intCast(atlas_width),

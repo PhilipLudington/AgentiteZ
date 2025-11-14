@@ -15,20 +15,23 @@ SAMPLER2D(s_texColor, 0);
 void main()
 {
 	// Sample the SDF texture (single channel R8)
-	float distance = texture2D(s_texColor, v_texcoord0).r;
+	float sig_dist = texture2D(s_texColor, v_texcoord0).r;
 
-	// SDF parameters (matching font_atlas.zig generation)
-	// onedge_value = 128 / 255 = 0.502
-	// pixel_dist_scale = 32.0 (updated from 64.0)
-	// We want to render pixels where distance >= onedge_value
+	// SDF parameters (matching font_atlas.zig optimized generation)
+	// onedge_value = 180 / 255 = 0.706
+	// padding = 6 pixels
+	// pixel_dist_scale = 30.0 (maps ±6px range to 0-255 optimally)
 
-	// Simple threshold for sharp edges
-	// For smoother antialiasing, use smoothstep:
-	float edge = 0.5;  // Corresponds to onedge_value 128
-	float smoothing = 0.25 / 32.0;  // Smoothing based on pixel_dist_scale (updated)
+	// CRITICAL: Use fwidth() for screen-space antialiasing (per Grok recommendation)
+	// This matches bitmap atlas crispness while maintaining SDF scaling benefits
+	// fwidth() = abs(dFdx(sig_dist)) + abs(dFdy(sig_dist))
+	// Gives us the rate of change of the distance field per screen pixel
+	float edge = 0.706;  // Corresponds to onedge_value 180
+	float width = fwidth(sig_dist);  // Screen-space AA width
 
-	// Calculate alpha with antialiasing
-	float alpha = smoothstep(edge - smoothing, edge + smoothing, distance);
+	// Calculate alpha with screen-space antialiasing
+	// smoothstep creates smooth transition over the width calculated by fwidth
+	float alpha = smoothstep(edge - width, edge + width, sig_dist);
 
 	// Apply vertex color and calculated alpha
 	gl_FragColor = vec4(v_color0.rgb, v_color0.a * alpha);
