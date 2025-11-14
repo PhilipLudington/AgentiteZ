@@ -5,6 +5,7 @@ const stb = root.stb_truetype;
 const types = @import("types.zig");
 const shaders = @import("shaders.zig");
 const log = @import("../log.zig");
+const FontAtlasModule = @import("../renderer/font_atlas.zig");
 
 pub const Rect = types.Rect;
 pub const Color = types.Color;
@@ -52,8 +53,9 @@ fn colorToABGR(color: Color) u32 {
         (@as(u32, color.r) << 0);
 }
 
-/// Font atlas for text rendering
-const FontAtlas = struct {
+/// Font atlas for text rendering (DEPRECATED - use FontAtlasModule.FontAtlas instead)
+/// This old implementation is kept for backwards compatibility but should be migrated
+const OldFontAtlas = struct {
     texture: bgfx.TextureHandle,
     width: u32,
     height: u32,
@@ -63,7 +65,7 @@ const FontAtlas = struct {
     descent: f32,
     line_gap: f32,
 
-    fn init(allocator: std.mem.Allocator, font_data: []const u8, font_size: f32) !FontAtlas {
+    fn init(allocator: std.mem.Allocator, font_data: []const u8, font_size: f32) !OldFontAtlas {
         // Set thread-local allocator for C callbacks
         stb.setThreadAllocator(allocator);
         defer stb.clearThreadAllocator();
@@ -150,7 +152,7 @@ const FontAtlas = struct {
         };
     }
 
-    fn deinit(self: *FontAtlas) void {
+    fn deinit(self: *OldFontAtlas) void {
         bgfx.destroyTexture(self.texture);
     }
 };
@@ -261,7 +263,10 @@ pub const Renderer2D = struct {
     texture_batch: TextureBatch,
 
     // Font atlas for text rendering
-    font_atlas: FontAtlas,
+    font_atlas: OldFontAtlas,
+
+    // External font atlas (optional, for SDF support)
+    external_font_atlas: ?*const FontAtlasModule.FontAtlas,
 
     // View ID for UI rendering
     view_id: bgfx.ViewId,
@@ -330,7 +335,7 @@ pub const Renderer2D = struct {
 
         // Load font atlas
         const font_data = @embedFile("../assets/fonts/Roboto-Regular.ttf");
-        const font_atlas = try FontAtlas.init(allocator, font_data, 24.0);
+        const font_atlas = try OldFontAtlas.init(allocator, font_data, 24.0);
 
         return .{
             .allocator = allocator,
@@ -342,6 +347,7 @@ pub const Renderer2D = struct {
             .color_batch = DrawBatch.init(allocator),
             .texture_batch = TextureBatch.init(allocator),
             .font_atlas = font_atlas,
+            .external_font_atlas = null, // No external atlas by default
             .view_id = 0,
             .default_view_id = 0,
             .overlay_view_id = 1,
@@ -375,6 +381,11 @@ pub const Renderer2D = struct {
     pub fn setViewportOffset(self: *Renderer2D, offset_x: i32, offset_y: i32) void {
         self.viewport_offset_x = offset_x;
         self.viewport_offset_y = offset_y;
+    }
+
+    /// Set external font atlas (enables SDF rendering if atlas.use_sdf is true)
+    pub fn setExternalFontAtlas(self: *Renderer2D, atlas: *const FontAtlasModule.FontAtlas) void {
+        self.external_font_atlas = atlas;
     }
 
     /// Set viewport parameters from ViewportInfo (convenience method)
@@ -539,8 +550,9 @@ pub const Renderer2D = struct {
         bgfx.setTransientVertexBuffer(0, &tvb, 0, num_vertices);
         bgfx.setTransientIndexBuffer(&tib, 0, num_indices);
 
-        // Set texture
-        bgfx.setTexture(0, self.shader_programs.texture_sampler, self.font_atlas.texture, 0xffffffff);
+        // Set texture (use external font atlas if available, otherwise use internal)
+        const texture = if (self.external_font_atlas) |atlas| atlas.texture else self.font_atlas.texture;
+        bgfx.setTexture(0, self.shader_programs.texture_sampler, texture, 0xffffffff);
 
         // Apply scissor if enabled - call setScissor fresh each time
         // IMPORTANT: Scale by DPI for HiDPI displays (BGFX expects physical pixels)
@@ -565,8 +577,14 @@ pub const Renderer2D = struct {
             0,
         );
 
-        // Submit draw call with texture shader program
-        _ = bgfx.submit(self.view_id, self.shader_programs.texture_program, 0, bgfx.DiscardFlags_All);
+        // Submit draw call with appropriate shader program
+        // Use SDF shader if external font atlas is set and has SDF enabled
+        const program = if (self.external_font_atlas) |atlas|
+            if (atlas.use_sdf) self.shader_programs.sdf_text_program else self.shader_programs.texture_program
+        else
+            self.shader_programs.texture_program;
+
+        _ = bgfx.submit(self.view_id, program, 0, bgfx.DiscardFlags_All);
 
         // Clear the batch after submitting
         self.texture_batch.clear();
@@ -592,8 +610,53 @@ pub const Renderer2D = struct {
         self.drawRect(.{ .x = rect.x + rect.width - thickness, .y = rect.y + thickness, .width = thickness, .height = rect.height - (thickness * 2) }, color);
     }
 
-    /// Draw text using font atlas
+    /// Draw text using font atlas (supports both old and new SDF atlas)
     pub fn drawText(self: *Renderer2D, text: []const u8, pos: Vec2, size: f32, color: Color) void {
+        // Use external font atlas if available, otherwise fall back to internal
+        if (self.external_font_atlas) |atlas| {
+            self.drawTextWithNewAtlas(atlas, text, pos, size, color);
+        } else {
+            self.drawTextWithOldAtlas(text, pos, size, color);
+        }
+    }
+
+    /// Draw text using new optimized font atlas (with SDF support)
+    fn drawTextWithNewAtlas(self: *Renderer2D, atlas: *const FontAtlasModule.FontAtlas, text: []const u8, pos: Vec2, size: f32, color: Color) void {
+        const scale = size / atlas.font_size;
+        var cursor_x = pos.x;
+        const cursor_y = pos.y;
+
+        for (text) |char| {
+            if (char >= 256) continue; // Skip non-ASCII
+
+            const glyph = &atlas.glyphs[char];
+            if (glyph.width == 0 or glyph.height == 0) continue; // Skip empty glyphs
+
+            // Calculate quad position and size
+            const x0 = cursor_x + glyph.offset_x * scale;
+            const y0 = cursor_y + glyph.offset_y * scale;
+            const w = glyph.width * scale;
+            const h = glyph.height * scale;
+
+            // UV coordinates are already normalized in the glyph
+            const uv_x0 = glyph.uv_x0;
+            const uv_y0 = glyph.uv_y0;
+            const uv_x1 = glyph.uv_x1;
+            const uv_y1 = glyph.uv_y1;
+
+            // Add textured quad to batch
+            self.texture_batch.addQuad(x0, y0, w, h, uv_x0, uv_y0, uv_x1, uv_y1, color) catch |err| {
+                log.renderer.warn("Failed to add text glyph to batch: {}", .{err});
+                return;
+            };
+
+            // Advance cursor
+            cursor_x += glyph.advance * scale;
+        }
+    }
+
+    /// Draw text using old embedded font atlas (legacy)
+    fn drawTextWithOldAtlas(self: *Renderer2D, text: []const u8, pos: Vec2, size: f32, color: Color) void {
         const scale = size / self.font_atlas.font_size;
         var cursor_x = pos.x;
         const cursor_y = pos.y;
@@ -610,12 +673,7 @@ pub const Renderer2D = struct {
             const x1 = x0 + (@as(f32, @floatFromInt(char_info.x1)) - @as(f32, @floatFromInt(char_info.x0))) * scale;
             const y1 = y0 + (@as(f32, @floatFromInt(char_info.y1)) - @as(f32, @floatFromInt(char_info.y0))) * scale;
 
-            // Calculate UV coordinates (normalized 0-1)
-            // TEXTURE ATLAS SAFEGUARDS:
-            // 1. Half-pixel offset: Sample from pixel centers (+0.5/-0.5) to prevent
-            //    bilinear filtering from missing edge pixels
-            // 2. Clamp sampling: Texture uses UClamp/VClamp flags to prevent wraparound
-            // 3. Linear filtering: Uses default bilinear filtering for smooth antialiased text
+            // Calculate UV coordinates
             const atlas_w = @as(f32, @floatFromInt(self.font_atlas.width));
             const atlas_h = @as(f32, @floatFromInt(self.font_atlas.height));
 
@@ -628,7 +686,7 @@ pub const Renderer2D = struct {
             const w = x1 - x0;
             const h = y1 - y0;
             self.texture_batch.addQuad(x0, y0, w, h, uv_x0, uv_y0, uv_x1, uv_y1, color) catch |err| {
-                log.renderer.warn("Failed to add text glyph to batch, remaining text will not render: {}", .{err});
+                log.renderer.warn("Failed to add text glyph to batch: {}", .{err});
                 return;
             };
 

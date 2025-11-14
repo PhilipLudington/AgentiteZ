@@ -9,6 +9,9 @@ pub const ShaderPrograms = struct {
     /// Program for rendering textured primitives (text, images)
     texture_program: bgfx.ProgramHandle,
 
+    /// Program for rendering SDF (Signed Distance Field) text
+    sdf_text_program: bgfx.ProgramHandle,
+
     /// Texture sampler uniform for texture program
     texture_sampler: bgfx.UniformHandle,
 
@@ -42,12 +45,27 @@ pub const ShaderPrograms = struct {
         // Create texture program
         const texture_program = bgfx.createProgram(vs_texture, fs_texture, true);
 
+        // Load SDF text shaders
+        const vs_sdf_text_data = @embedFile("shaders_data/vs_sdf_text.bin");
+        const fs_sdf_text_data = @embedFile("shaders_data/fs_sdf_text.bin");
+
+        // Create shader handles
+        const vs_sdf_text_mem = bgfx.copy(vs_sdf_text_data.ptr, @intCast(vs_sdf_text_data.len));
+        const vs_sdf_text = bgfx.createShader(vs_sdf_text_mem);
+
+        const fs_sdf_text_mem = bgfx.copy(fs_sdf_text_data.ptr, @intCast(fs_sdf_text_data.len));
+        const fs_sdf_text = bgfx.createShader(fs_sdf_text_mem);
+
+        // Create SDF text program
+        const sdf_text_program = bgfx.createProgram(vs_sdf_text, fs_sdf_text, true);
+
         // Create texture sampler uniform
         const texture_sampler = bgfx.createUniform("s_texColor", bgfx.UniformType.Sampler, 1);
 
         return ShaderPrograms{
             .color_program = color_program,
             .texture_program = texture_program,
+            .sdf_text_program = sdf_text_program,
             .texture_sampler = texture_sampler,
         };
     }
@@ -56,6 +74,7 @@ pub const ShaderPrograms = struct {
     pub fn deinit(self: ShaderPrograms) void {
         bgfx.destroyProgram(self.color_program);
         bgfx.destroyProgram(self.texture_program);
+        bgfx.destroyProgram(self.sdf_text_program);
         bgfx.destroyUniform(self.texture_sampler);
     }
 };

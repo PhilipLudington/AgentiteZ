@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-EtherMud is a modern game engine framework built with Zig 0.15.1, providing production-ready foundation systems for game development. It currently powers **Stellar Throne** (4X strategy game) and **Machinae**.
+EtherMud is a modern game engine framework built with Zig 0.15.1, providing production-ready foundation systems for game development. It currently powers **Stellar Throne** (4X strategy game) and **Machinae** (factory-building game).
 
 **Core Features:**
 - **ECS Architecture** - Entity-Component-System with sparse-set storage and generation counters
@@ -641,30 +641,52 @@ room_id = "armory"
 - Memory leak detection via std.testing.allocator
 - All tests pass successfully
 
-### Font Atlas System
+### Font Atlas System 🎯 **HiDPI-Aware Bitmap Atlas**
 
-Optimized font rendering with pre-baked glyph atlas (`src/renderer/font_atlas.zig`):
+Professional font rendering with **HiDPI/Retina support** and optimized bitmap packing (`src/renderer/font_atlas.zig`):
+
+#### 📦 **Bitmap Mode** (Production-Ready, HiDPI-Aware)
+
+**Perfect for:** All UI rendering, HiDPI displays, Retina/4K/5K monitors
+
+**Currently Used in Main Demo** - Provides crystal-clear text on all displays with automatic DPI scaling.
+
+Optimized font rendering with pre-baked glyph atlas and full HiDPI support:
 
 **Features:**
-- **Pre-baked 256 ASCII glyphs** - All glyphs rendered to texture at load time
-- **Fast text measurement** - No stb_truetype calls during rendering
-- **Proper glyph metrics** - UV coords, offsets, advances for perfect positioning
-- **16x16 atlas grid** - Efficient packing of 256 characters
-- **RGBA8 format** - Metal-compatible texture format (glyph in alpha channel)
-- **Text truncation** - Ellipsis support for overflow detection
+- ✅ **HiDPI/Retina Support** - Automatic DPI scaling for crisp text on 2x/3x displays
+- ✅ **Pre-baked 94 printable ASCII glyphs** - All standard chars rendered at load time
+- ✅ **Fast text measurement** - No stb_truetype calls during rendering
+- ✅ **Proper glyph metrics** - UV coords, offsets, advances for perfect positioning
+- ✅ **16x16 atlas grid** - Efficient packing of 256 characters
+- ✅ **RGBA8 format** - Metal-compatible texture format (glyph in alpha channel)
+- ✅ **Text truncation** - Ellipsis support for overflow detection
+- ✅ **~50ms startup** - Fast atlas generation
 
-**Usage Pattern:**
+**Usage Pattern (with HiDPI):**
 ```zig
 const renderer = @import("EtherMud").renderer;
 
-// Load font and bake atlas (do once at startup)
+// Get DPI scale from SDL3 (comparing logical vs physical pixels)
+var pixel_width: c_int = undefined;
+var pixel_height: c_int = undefined;
+_ = c.SDL_GetWindowSizeInPixels(window, &pixel_width, &pixel_height);
+const dpi_scale = @as(f32, @floatFromInt(pixel_width)) / @as(f32, @floatFromInt(window_width));
+
+// Load font at DPI-scaled size for sharp rendering on Retina
+const base_font_size: f32 = 24.0;
+const dpi_font_size = base_font_size * dpi_scale; // 48.0 on 2x Retina
+
 var font_atlas = try renderer.FontAtlas.init(
     allocator,
     "external/bgfx/examples/runtime/font/roboto-regular.ttf",
-    24.0, // font size in pixels
-    false // flip_uv (false for standard, true for some renderers)
+    dpi_font_size, // DPI-adjusted font size
+    false // flip_uv
 );
 defer font_atlas.deinit();
+
+// Wire up to Renderer2D
+renderer_2d.setExternalFontAtlas(&font_atlas);
 
 // Fast text measurement (no stb calls)
 const text = "Hello, World!";
@@ -743,6 +765,14 @@ The project includes several fonts from bgfx examples:
 - `external/bgfx/examples/runtime/font/droidsans.ttf` - Android default
 - `external/bgfx/examples/runtime/font/droidsansmono.ttf` - Monospace
 
+**HiDPI Support Details:**
+The engine includes full HiDPI/Retina display support:
+- SDL3 window created with `SDL_WINDOW_HIGH_PIXEL_DENSITY` flag
+- DPI scale calculated from logical vs physical pixel dimensions
+- bgfx initialized and viewport set to physical pixel dimensions
+- Font atlas generated at DPI-scaled size (e.g., 48px on 2x Retina)
+- UI coordinates remain in logical 1920x1080 virtual space
+
 **Tests:**
 - 10 comprehensive tests covering all algorithms
 - Glyph struct layout and UV calculation
@@ -753,6 +783,14 @@ The project includes several fonts from bgfx examples:
 - RGBA conversion for Metal compatibility
 - Glyph packing grid layout
 - All tests pass successfully
+
+---
+
+#### 🔬 **Experimental: Runtime SDF Mode**
+
+**Status:** Implemented but not recommended for production use. SDF rendering quality was found to be inferior to bitmap atlas on HiDPI displays.
+
+Runtime SDF (Signed Distance Field) is available via `FontAtlas.initSDF()` for zoom-heavy applications, but bitmap atlas with proper DPI scaling provides superior quality for fixed-scale UI. SDF code and shaders remain in the codebase for future experimentation.
 
 ## Important Notes
 

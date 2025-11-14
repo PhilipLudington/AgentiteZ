@@ -60,12 +60,12 @@ pub fn main() !void {
     }
     defer c.SDL_Quit();
 
-    // Create window
+    // Create window with HiDPI support for Retina displays
     const window = c.SDL_CreateWindow(
         "EtherMud UI Widget Demo",
         1920,
         1080,
-        c.SDL_WINDOW_RESIZABLE | c.SDL_WINDOW_MAXIMIZED,
+        c.SDL_WINDOW_RESIZABLE | c.SDL_WINDOW_MAXIMIZED | c.SDL_WINDOW_HIGH_PIXEL_DENSITY,
     ) orelse {
         std.debug.print("SDL_CreateWindow failed: {s}\n", .{c.SDL_GetError()});
         return error.SDLCreateWindowFailed;
@@ -75,24 +75,29 @@ pub fn main() !void {
     // Get native window handle for bgfx
     const sys_wm_info = try getSDLNativeWindow(window);
 
-    // Initialize bgfx
-    try initBgfx(sys_wm_info, 1920, 1080);
-    defer bgfx.shutdown();
-
-    // Enable debug text rendering
-    bgfx.setDebug(bgfx.DebugFlags_Text);
-
     // Get actual window size
     var window_width: c_int = 0;
     var window_height: c_int = 0;
     _ = c.SDL_GetWindowSize(window, &window_width, &window_height);
 
-    // Get DPI scale from SDL3
-    const display_id = c.SDL_GetDisplayForWindow(window);
-    const content_scale = c.SDL_GetDisplayContentScale(display_id);
-    var dpi_scale = if (content_scale > 0) content_scale else 1.0;
+    // Get actual DPI scale from SDL3 by comparing logical vs pixel size
+    // SDL_GetDisplayContentScale() is unreliable on macOS, so we calculate it manually
+    var pixel_width: c_int = undefined;
+    var pixel_height: c_int = undefined;
+    _ = c.SDL_GetWindowSizeInPixels(window, &pixel_width, &pixel_height);
 
-    std.debug.print("Window: {}x{}, DPI Scale: {d:.2}x\n", .{ window_width, window_height, dpi_scale });
+    const calculated_dpi_scale = @as(f32, @floatFromInt(pixel_width)) / @as(f32, @floatFromInt(window_width));
+    var dpi_scale = if (calculated_dpi_scale > 0) calculated_dpi_scale else 1.0;
+
+    std.debug.print("Window: {}x{} logical, {}x{} pixels, DPI Scale: {d:.2}x\n", .{ window_width, window_height, pixel_width, pixel_height, dpi_scale });
+
+    // Initialize bgfx with actual pixel dimensions (not logical)
+    // On HiDPI displays, bgfx needs the physical pixel size
+    try initBgfx(sys_wm_info, @intCast(pixel_width), @intCast(pixel_height));
+    defer bgfx.shutdown();
+
+    // Enable debug text rendering
+    bgfx.setDebug(bgfx.DebugFlags_Text);
 
     // Initialize UI system
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -193,14 +198,23 @@ pub fn main() !void {
 
     // === Load Font Atlas ===
     std.debug.print("=== Loading Font Atlas ===\n", .{});
+    // Using optimized bitmap atlas with DPI scaling for Retina displays
+    const base_font_size: f32 = 24.0;
+    const dpi_font_size = base_font_size * dpi_scale;
+    std.debug.print("Font size: {d:.1}px (base: {d:.1}px × DPI {d:.2}x)\n", .{ dpi_font_size, base_font_size, dpi_scale });
+
     var font_atlas = try renderer.FontAtlas.init(
         allocator,
         "external/bgfx/examples/runtime/font/roboto-regular.ttf",
-        24.0, // font size
+        dpi_font_size, // DPI-scaled for sharp rendering on Retina
         false // flip_uv
     );
     defer font_atlas.deinit();
     std.debug.print("=== Font Atlas Ready ===\n\n", .{});
+
+    // Wire up bitmap font atlas to Renderer2D
+    renderer_2d.setExternalFontAtlas(&font_atlas);
+    std.debug.print("Bitmap font atlas enabled (DPI-aware)!\n\n", .{});
 
     // Initialize input state
     var input_state = platform.InputState.init(allocator);
@@ -229,7 +243,13 @@ pub fn main() !void {
                 c.SDL_EVENT_WINDOW_RESIZED => {
                     window_width = @intCast(event.window.data1);
                     window_height = @intCast(event.window.data2);
-                    bgfx.reset(@intCast(window_width), @intCast(window_height), bgfx.ResetFlags_Vsync, bgfx.TextureFormat.Count);
+
+                    // Get actual pixel dimensions for bgfx (HiDPI aware)
+                    var new_pixel_width: c_int = undefined;
+                    var new_pixel_height: c_int = undefined;
+                    _ = c.SDL_GetWindowSizeInPixels(window, &new_pixel_width, &new_pixel_height);
+
+                    bgfx.reset(@intCast(new_pixel_width), @intCast(new_pixel_height), bgfx.ResetFlags_Vsync, bgfx.TextureFormat.Count);
                     renderer_2d.updateWindowSize(@intCast(window_width), @intCast(window_height));
                 },
                 c.SDL_EVENT_DISPLAY_CONTENT_SCALE_CHANGED => {
@@ -280,12 +300,17 @@ pub fn main() !void {
             } else |_| {}
         }
 
-        // Set view 0 (main UI) to cover the entire window
-        bgfx.setViewRect(0, 0, 0, @intCast(window_width), @intCast(window_height));
+        // Get current pixel dimensions for HiDPI rendering
+        var current_pixel_width: c_int = undefined;
+        var current_pixel_height: c_int = undefined;
+        _ = c.SDL_GetWindowSizeInPixels(window, &current_pixel_width, &current_pixel_height);
 
-        // Set view 1 (overlay) to cover the entire window
+        // Set view 0 (main UI) to cover the entire framebuffer (use pixel dimensions for HiDPI)
+        bgfx.setViewRect(0, 0, 0, @intCast(current_pixel_width), @intCast(current_pixel_height));
+
+        // Set view 1 (overlay) to cover the entire framebuffer
         // Views are rendered in order, so view 1 will render after view 0
-        bgfx.setViewRect(1, 0, 0, @intCast(window_width), @intCast(window_height));
+        bgfx.setViewRect(1, 0, 0, @intCast(current_pixel_width), @intCast(current_pixel_height));
 
         // Clear the framebuffer
         bgfx.setViewClear(

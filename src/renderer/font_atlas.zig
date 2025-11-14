@@ -91,6 +91,7 @@ pub const FontAtlas = struct {
     line_height: f32,
     allocator: std.mem.Allocator,
     use_packed: bool, // True if using optimized packing
+    use_sdf: bool, // True if using SDF (Signed Distance Field)
 
     /// Load a TrueType font and generate a texture atlas (with optimized packing)
     pub fn init(allocator: std.mem.Allocator, font_path: []const u8, font_size: f32, flip_uv: bool) !FontAtlas {
@@ -120,6 +121,13 @@ pub const FontAtlas = struct {
         } else {
             return initGridAtlas(allocator, font_path, font_size, flip_uv);
         }
+    }
+
+    /// Load a TrueType font and generate SDF (Signed Distance Field) atlas
+    /// SDF atlases scale perfectly to any size - one atlas works for all zoom levels
+    /// Recommended for games with zoom/camera movement (4X strategy, factory-building)
+    pub fn initSDF(allocator: std.mem.Allocator, font_path: []const u8, font_size: f32, flip_uv: bool) !FontAtlas {
+        return initSDFAtlas(allocator, font_path, font_size, flip_uv);
     }
 
     /// Initialize atlas using stb_truetype's optimized pack API
@@ -291,6 +299,7 @@ pub const FontAtlas = struct {
             .line_height = line_height,
             .allocator = allocator,
             .use_packed = true,
+            .use_sdf = false,
         };
     }
 
@@ -463,6 +472,210 @@ pub const FontAtlas = struct {
             .line_height = line_height,
             .allocator = allocator,
             .use_packed = false,
+            .use_sdf = false,
+        };
+    }
+
+    /// Initialize atlas using SDF (Signed Distance Field) rendering
+    /// SDF provides perfect scaling at any zoom level from a single atlas
+    fn initSDFAtlas(allocator: std.mem.Allocator, font_path: []const u8, font_size: f32, flip_uv: bool) !FontAtlas {
+        // Load and validate font file
+        const font_data = try loadAndValidateFontFile(allocator, font_path);
+        defer allocator.free(font_data);
+
+        // Initialize stb_truetype
+        var font_info: stb.FontInfo = undefined;
+        if (stb.initFont(&font_info, font_data.ptr, 0) == 0) {
+            log.err("Renderer", "stb_truetype failed to parse font '{s}' (invalid font tables)", .{font_path});
+            return error.FontInitFailed;
+        }
+
+        // Calculate font metrics
+        const scale = stb.scaleForPixelHeight(&font_info, font_size);
+        var ascent: c_int = undefined;
+        var descent: c_int = undefined;
+        var line_gap: c_int = undefined;
+        stb.getFontVMetrics(&font_info, &ascent, &descent, &line_gap);
+        const line_height = @as(f32, @floatFromInt(ascent - descent + line_gap)) * scale;
+
+        log.info("Renderer", "Loading font '{s}' at {d:.1}px (SDF MODE)", .{ font_path, font_size });
+        log.info("Renderer", "Scale={d:.4}, Ascent={d}, Descent={d}, LineHeight={d:.2}", .{ scale, ascent, descent, line_height });
+
+        // SDF parameters
+        // For high-quality SDF, we need to render at a larger size
+        // The SDF algorithm works better with more pixels to encode distance information
+        const sdf_render_size = font_size * 3.0; // Render at 3x the target size for better quality
+        const sdf_scale = stb.scaleForPixelHeight(&font_info, sdf_render_size);
+
+        const padding: c_int = 8; // Extra pixels around each glyph for distance field
+        const onedge_value: u8 = 128; // Value representing the edge (0-255)
+        const pixel_dist_scale: f32 = 32.0; // Distance scale for SDF (lower = softer edges)
+
+        // Calculate atlas size for SDF
+        // SDF glyphs are larger due to padding, so we need more space
+        const atlas_width: u32 = 1024;
+        const atlas_height: u32 = 1024;
+
+        // Allocate atlas bitmap (single channel for SDF)
+        const atlas_size = atlas_width * atlas_height;
+        const atlas_bitmap = try allocator.alloc(u8, atlas_size);
+        defer allocator.free(atlas_bitmap);
+        @memset(atlas_bitmap, 0); // Clear to zero
+
+        // Initialize glyphs array
+        var glyphs: [256]Glyph = undefined;
+
+        // Simple grid packing for SDF glyphs
+        const grid_size = 16; // 16x16 grid = 256 glyphs
+        const cell_width = atlas_width / grid_size;
+        const cell_height = atlas_height / grid_size;
+
+        var rendered_count: usize = 0;
+        var missing_count: usize = 0;
+
+        // Set thread allocator for stb_truetype SDF calls
+        stb.setThreadAllocator(allocator);
+        defer stb.clearThreadAllocator();
+
+        // Render SDF for each printable ASCII character (32-126)
+        for (32..127) |i| {
+            const char: c_int = @intCast(i);
+            const glyph_idx = i;
+
+            // Calculate grid position
+            const grid_x = glyph_idx % grid_size;
+            const grid_y = glyph_idx / grid_size;
+            const atlas_x: c_int = @intCast(grid_x * cell_width);
+            const atlas_y: c_int = @intCast(grid_y * cell_height);
+
+            // Generate SDF for this glyph
+            var width: c_int = undefined;
+            var height: c_int = undefined;
+            var xoff: c_int = undefined;
+            var yoff: c_int = undefined;
+
+            const sdf_bitmap = stb.getCodepointSDF(
+                &font_info,
+                sdf_scale,
+                char,
+                padding,
+                onedge_value,
+                pixel_dist_scale,
+                &width,
+                &height,
+                &xoff,
+                &yoff,
+            );
+
+            if (sdf_bitmap == null or width == 0 or height == 0) {
+                // Missing glyph - create empty entry
+                glyphs[glyph_idx] = Glyph{
+                    .uv_x0 = 0,
+                    .uv_y0 = 0,
+                    .uv_x1 = 0,
+                    .uv_y1 = 0,
+                    .offset_x = 0,
+                    .offset_y = 0,
+                    .width = 0,
+                    .height = 0,
+                    .advance = 0,
+                };
+                missing_count += 1;
+                continue;
+            }
+            defer stb.freeSDFBitmap(sdf_bitmap, null);
+
+            // Copy SDF bitmap to atlas
+            const src_width: usize = @intCast(width);
+            const src_height: usize = @intCast(height);
+
+            for (0..src_height) |y| {
+                const src_row = y * src_width;
+                const dst_y: usize = @intCast(atlas_y + @as(c_int, @intCast(y)));
+                const dst_row = dst_y * atlas_width + @as(usize, @intCast(atlas_x));
+
+                // Copy row
+                for (0..src_width) |x| {
+                    const dst_x = dst_row + x;
+                    if (dst_x < atlas_bitmap.len) {
+                        atlas_bitmap[dst_x] = sdf_bitmap[src_row + x];
+                    }
+                }
+            }
+
+            // Get glyph metrics for advance
+            var advance: c_int = undefined;
+            var lsb: c_int = undefined;
+            stb.getCodepointHMetrics(&font_info, char, &advance, &lsb);
+
+            // Calculate UV coordinates
+            const uv_x0 = @as(f32, @floatFromInt(atlas_x)) / @as(f32, @floatFromInt(atlas_width));
+            const uv_y0 = if (flip_uv)
+                @as(f32, @floatFromInt(atlas_y + height)) / @as(f32, @floatFromInt(atlas_height))
+            else
+                @as(f32, @floatFromInt(atlas_y)) / @as(f32, @floatFromInt(atlas_height));
+
+            const uv_x1 = @as(f32, @floatFromInt(atlas_x + width)) / @as(f32, @floatFromInt(atlas_width));
+            const uv_y1 = if (flip_uv)
+                @as(f32, @floatFromInt(atlas_y)) / @as(f32, @floatFromInt(atlas_height))
+            else
+                @as(f32, @floatFromInt(atlas_y + height)) / @as(f32, @floatFromInt(atlas_height));
+
+            // Scale glyph metrics back down to target font size
+            // We rendered at 3x size for better SDF quality, but need metrics at 1x
+            const scale_down = font_size / sdf_render_size;
+
+            glyphs[glyph_idx] = Glyph{
+                .uv_x0 = uv_x0,
+                .uv_y0 = uv_y0,
+                .uv_x1 = uv_x1,
+                .uv_y1 = uv_y1,
+                .offset_x = @as(f32, @floatFromInt(xoff)) * scale_down,
+                .offset_y = @as(f32, @floatFromInt(yoff)) * scale_down,
+                .width = @as(f32, @floatFromInt(width)) * scale_down,
+                .height = @as(f32, @floatFromInt(height)) * scale_down,
+                .advance = @as(f32, @floatFromInt(advance)) * scale,
+            };
+
+            rendered_count += 1;
+        }
+
+        // Initialize control characters and extended ASCII as empty
+        for (0..32) |i| {
+            glyphs[i] = .{ .uv_x0 = 0, .uv_y0 = 0, .uv_x1 = 0, .uv_y1 = 0, .offset_x = 0, .offset_y = 0, .width = 0, .height = 0, .advance = 0 };
+        }
+        for (127..256) |i| {
+            glyphs[i] = .{ .uv_x0 = 0, .uv_y0 = 0, .uv_x1 = 0, .uv_y1 = 0, .offset_x = 0, .offset_y = 0, .width = 0, .height = 0, .advance = 0 };
+        }
+
+        log.info("Renderer", "Rendered {d} SDF glyphs, {d} missing from font", .{ rendered_count, missing_count });
+        log.info("Renderer", "SDF atlas size {d}x{d}", .{ atlas_width, atlas_height });
+
+        // Create bgfx texture (R8 format for single-channel SDF)
+        // CRITICAL: Use default filtering (bilinear) for smooth SDF rendering
+        // Point filtering would make SDF look pixelated
+        const texture_flags = bgfx.SamplerFlags_UClamp | bgfx.SamplerFlags_VClamp;
+        const mem = bgfx.copy(atlas_bitmap.ptr, @intCast(atlas_bitmap.len));
+        const texture = bgfx.createTexture2D(
+            @intCast(atlas_width),
+            @intCast(atlas_height),
+            false, // no mipmaps
+            1, // layers
+            bgfx.TextureFormat.R8, // Single channel
+            texture_flags,
+            mem,
+        );
+
+        return FontAtlas{
+            .texture = texture,
+            .glyphs = glyphs,
+            .atlas_width = atlas_width,
+            .atlas_height = atlas_height,
+            .font_size = font_size,
+            .line_height = line_height,
+            .allocator = allocator,
+            .use_packed = false,
+            .use_sdf = true,
         };
     }
 
