@@ -19,7 +19,8 @@ This document outlines the implementation plan for addressing code review recomm
 **Implementation Status:**
 - **Phase 1:** ✅ COMPLETE - All 3 high priority fixes done (~7 hours)
 - **Phase 2:** ✅ COMPLETE - All 4 medium priority improvements done (~12 hours)
-- **Phase 3:** 🔄 OPTIONAL - Future enhancements available (~28+ hours)
+- **Phase 4:** ⭐ **RECOMMENDED NEXT** - Hybrid font rendering for production quality (~23-30 hours)
+- **Phase 3:** 🔄 OPTIONAL - Remaining enhancements after Phase 4 (~27 hours)
 
 **Total Time Spent:** ~19 hours
 **Build Status:** ✅ All tests passing, no warnings
@@ -998,9 +999,12 @@ test "Virtual to physical coordinate conversion after resize" {
 
 These are nice-to-have improvements that significantly enhance the engine but aren't blocking.
 
-### ⚠️ Task 3.1: Optimize Font Atlas Packing - INVESTIGATED
+**Note:** Task 3.1 (Font Atlas Packing) has been moved to Phase 4 as Task 4.1, since it's a prerequisite for the hybrid font system and has higher priority for production games.
 
-**Status:** ⚠️ **BLOCKED** - stb_truetype malloc issue
+### ⚠️ Task 3.1: Optimize Font Atlas Packing - MOVED TO PHASE 4
+
+**Status:** ⚠️ **MOVED** - Now Task 4.1 in Phase 4 (Hybrid Font Rendering)
+**Reason:** This task is blocked by malloc issue AND is a prerequisite for MSDF integration. Phase 4 has higher priority for commercial game engine needs.
 **Actual Effort:** 6 hours (investigation complete)
 **Priority:** Low (Performance optimization)
 **Effort:** 6-8 hours (code complete, blocked on platform issue)
@@ -1532,6 +1536,705 @@ const player = try world.createEntity();
 
 ---
 
+## 🚀 Phase 4: Hybrid Font Rendering System (Advanced Quality)
+
+**Status:** ⏸️ Not started
+**Priority:** Medium-High (Engine quality improvement for Stellar Throne & Machinae)
+**Total Effort:** 20-25 hours
+**Goal:** Implement professional-grade hybrid font system combining MSDF atlas generation for default fonts with runtime stb_truetype for dynamic/modding support
+
+### Rationale
+
+EtherMud is a game engine framework powering **Stellar Throne** (4X strategy) and **Machinae**. For production game engines serving commercial titles, professional text rendering quality is essential:
+
+- **4X Strategy Games** need multiple font sizes (UI labels, tooltips, planet names, headers)
+- **Zoom support** benefits from scalable text (MSDF maintains quality at any scale)
+- **Build pipeline complexity** is acceptable for engine infrastructure
+- **Runtime flexibility** still needed for modding and localization
+
+### Architecture: Hybrid Approach
+
+**Default Fonts (Build-time):**
+- msdf-atlas-gen pre-generates MSDF atlases for standard UI fonts
+- Multiple sizes baked into optimized atlases
+- Professional quality at all zoom levels
+- Zero runtime font parsing overhead
+
+**Dynamic Fonts (Runtime):**
+- stb_truetype for user-provided fonts
+- Modding support (custom fonts in mods)
+- Localization (dynamically load language-specific fonts)
+- Fallback for missing glyphs
+
+**Abstraction Layer:**
+- Unified `FontSystem` API supporting both backends
+- Transparent switching between MSDF and bitmap rendering
+- Shader variants for MSDF vs traditional bitmap fonts
+
+---
+
+### Task 4.1: Fix stb_truetype malloc Issue (Foundation)
+
+**Status:** ⏸️ Not started
+**Priority:** High (Unblocks optimized packing)
+**Effort:** 3-4 hours
+**Files:** `src/stb_truetype.zig`, new `src/stb_truetype_wrapper.c`
+
+#### Current Issue
+stb_truetype's pack API uses `STBTT_malloc` with NULL allocator context, failing on macOS/Zig due to allocator incompatibility.
+
+#### Goal
+Bridge Zig allocator to stb_truetype's C malloc expectations.
+
+#### Implementation Steps
+
+1. **Create C wrapper with custom allocator macros**
+```c
+// src/stb_truetype_wrapper.c
+#include <stddef.h>
+
+// Forward declarations for Zig-provided allocator functions
+extern void* zig_stb_alloc(size_t size);
+extern void zig_stb_free(void* ptr);
+
+// Define stb_truetype allocator macros
+#define STBTT_malloc(x,u)  zig_stb_alloc(x)
+#define STBTT_free(x,u)    zig_stb_free(x)
+
+// Now include stb_truetype implementation
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "external/stb/stb_truetype.h"
+```
+
+2. **Implement Zig allocator bridge**
+```zig
+// src/stb_truetype.zig
+
+// Thread-local allocator for C callbacks
+threadlocal var current_allocator: ?std.mem.Allocator = null;
+
+export fn zig_stb_alloc(size: usize) callconv(.C) ?*anyopaque {
+    const allocator = current_allocator orelse return null;
+    const bytes = allocator.alloc(u8, size) catch return null;
+    return @ptrCast(bytes.ptr);
+}
+
+export fn zig_stb_free(ptr: ?*anyopaque) callconv(.C) void {
+    const allocator = current_allocator orelse return;
+    if (ptr) |p| {
+        // Note: We can't know the size here, which is a limitation
+        // This requires keeping a separate allocation tracking map
+        allocator.free(getAllocationSlice(p));
+    }
+}
+
+// Allocation tracking for proper deallocation
+var allocation_map: std.AutoHashMap(*anyopaque, []u8) = undefined;
+var map_mutex: std.Thread.Mutex = .{};
+
+fn trackAllocation(ptr: *anyopaque, slice: []u8) void {
+    map_mutex.lock();
+    defer map_mutex.unlock();
+    allocation_map.put(ptr, slice) catch unreachable;
+}
+
+fn getAllocationSlice(ptr: *anyopaque) []u8 {
+    map_mutex.lock();
+    defer map_mutex.unlock();
+    return allocation_map.get(ptr) orelse unreachable;
+}
+```
+
+3. **Update build.zig to compile C wrapper**
+```zig
+const stb_wrapper = b.addObject(.{
+    .name = "stb_truetype_wrapper",
+    .target = target,
+    .optimize = optimize,
+});
+stb_wrapper.addCSourceFile(.{
+    .file = b.path("src/stb_truetype_wrapper.c"),
+    .flags = &[_][]const u8{"-std=c99"},
+});
+stb_wrapper.linkLibC();
+
+mod.addObject(stb_wrapper);
+```
+
+4. **Update FontAtlas to use scoped allocator**
+```zig
+pub fn init(allocator: std.mem.Allocator, font_path: []const u8, font_size: f32, flip_uv: bool) !FontAtlas {
+    // Set thread-local allocator for C callbacks
+    current_allocator = allocator;
+    defer current_allocator = null;
+
+    // Initialize allocation tracking
+    allocation_map = std.AutoHashMap(*anyopaque, []u8).init(allocator);
+    defer allocation_map.deinit();
+
+    // Now packFontRanges will succeed
+    return initPacked(allocator, font_path, font_size, flip_uv, true);
+}
+```
+
+#### Acceptance Criteria
+- [ ] stb_truetype pack API works without malloc failures
+- [ ] Optimized packing reduces atlas size by ≥30%
+- [ ] All allocations properly tracked and freed
+- [ ] No memory leaks (test with allocator leak detection)
+- [ ] Thread-safe allocation tracking
+- [ ] All existing tests pass
+- [ ] New test for pack API success
+
+#### Testing
+```zig
+test "stb_truetype pack API with custom allocator" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const font_atlas = try FontAtlas.init(
+        allocator,
+        "external/bgfx/examples/runtime/font/roboto-regular.ttf",
+        24.0,
+        false
+    );
+    defer font_atlas.deinit();
+
+    // Verify packing succeeded
+    try std.testing.expect(font_atlas.use_packed);
+
+    // Atlas should be smaller than grid layout
+    try std.testing.expect(font_atlas.atlas_width <= 512);
+}
+```
+
+---
+
+### Task 4.2: Integrate msdf-atlas-gen Build Pipeline
+
+**Status:** ⏸️ Not started
+**Priority:** Medium
+**Effort:** 8-10 hours
+**Files:** `build.zig`, new `tools/generate_font_atlas.zig`, `src/renderer/msdf_atlas.zig`
+
+#### Goal
+Add build-time MSDF atlas generation for default UI fonts.
+
+#### Implementation Steps
+
+1. **Add msdf-atlas-gen as build dependency**
+```zig
+// build.zig
+const msdf_atlas_gen_exe = b.dependency("msdf_atlas_gen", .{
+    .target = target,
+    .optimize = .ReleaseFast,
+}).artifact("msdf-atlas-gen");
+
+// Install for build tools
+b.installArtifact(msdf_atlas_gen_exe);
+```
+
+2. **Add build.zig.zon dependency**
+```zig
+// build.zig.zon
+.dependencies = .{
+    .msdf_atlas_gen = .{
+        .url = "https://github.com/Chlumsky/msdf-atlas-gen/archive/refs/tags/v1.3.tar.gz",
+        .hash = "...",
+    },
+},
+```
+
+3. **Create atlas generation tool**
+```zig
+// tools/generate_font_atlas.zig
+const std = @import("std");
+
+pub fn main() !void {
+    const allocator = std.heap.page_allocator;
+
+    const fonts = [_]FontSpec{
+        .{ .path = "assets/fonts/roboto-regular.ttf", .sizes = &[_]f32{ 12, 16, 20, 24, 32, 48 } },
+        .{ .path = "assets/fonts/roboto-bold.ttf", .sizes = &[_]f32{ 16, 24, 32 } },
+    };
+
+    for (fonts) |font| {
+        for (font.sizes) |size| {
+            try generateMSDFAtlas(allocator, font.path, size);
+        }
+    }
+}
+
+fn generateMSDFAtlas(allocator: std.mem.Allocator, font_path: []const u8, size: f32) !void {
+    const output_name = try std.fmt.allocPrint(
+        allocator,
+        "assets/atlases/{s}-{d}.png",
+        .{ std.fs.path.stem(font_path), @as(u32, @intFromFloat(size)) }
+    );
+    defer allocator.free(output_name);
+
+    // Run msdf-atlas-gen
+    const result = try std.ChildProcess.exec(.{
+        .allocator = allocator,
+        .argv = &[_][]const u8{
+            "msdf-atlas-gen",
+            "-font", font_path,
+            "-type", "msdf",
+            "-format", "png",
+            "-size", try std.fmt.allocPrint(allocator, "{d}", .{size}),
+            "-charset", "ascii",
+            "-imageout", output_name,
+            "-json", try std.fmt.allocPrint(allocator, "{s}.json", .{output_name}),
+        },
+    });
+
+    if (result.term.Exited != 0) {
+        std.debug.print("msdf-atlas-gen failed: {s}\n", .{result.stderr});
+        return error.AtlasGenerationFailed;
+    }
+}
+```
+
+4. **Add build step**
+```zig
+// build.zig
+const gen_atlases = b.addRunArtifact(b.addExecutable(.{
+    .name = "generate_font_atlas",
+    .root_source_file = b.path("tools/generate_font_atlas.zig"),
+    .target = target,
+}));
+
+const gen_step = b.step("generate-atlases", "Generate MSDF font atlases");
+gen_step.dependOn(&gen_atlases.step);
+```
+
+5. **Create MSDF atlas loader**
+```zig
+// src/renderer/msdf_atlas.zig
+pub const MSDFAtlas = struct {
+    texture: bgfx.TextureHandle,
+    glyphs: std.StringHashMap(MSDFGlyph),
+    allocator: std.mem.Allocator,
+
+    pub const MSDFGlyph = struct {
+        // UV coordinates
+        uv_x0: f32, uv_y0: f32,
+        uv_x1: f32, uv_y1: f32,
+
+        // Metrics
+        advance: f32,
+        plane_bounds: struct { left: f32, bottom: f32, right: f32, top: f32 },
+        atlas_bounds: struct { left: f32, bottom: f32, right: f32, top: f32 },
+    };
+
+    pub fn loadFromFile(allocator: std.mem.Allocator, json_path: []const u8, png_path: []const u8) !MSDFAtlas {
+        // Load JSON metadata
+        const json_data = try std.fs.cwd().readFileAlloc(allocator, json_path, 10 * 1024 * 1024);
+        defer allocator.free(json_data);
+
+        // Parse msdf-atlas-gen JSON format
+        const parsed = try std.json.parseFromSlice(AtlasJSON, allocator, json_data, .{});
+        defer parsed.deinit();
+
+        // Load PNG texture
+        const texture = try loadPNGTexture(allocator, png_path);
+
+        // Build glyph map
+        var glyphs = std.StringHashMap(MSDFGlyph).init(allocator);
+        for (parsed.value.glyphs) |glyph_data| {
+            const key = try allocator.dupe(u8, &[_]u8{@intCast(glyph_data.unicode)});
+            try glyphs.put(key, .{
+                .uv_x0 = glyph_data.atlasBounds.left,
+                .uv_y0 = glyph_data.atlasBounds.bottom,
+                .uv_x1 = glyph_data.atlasBounds.right,
+                .uv_y1 = glyph_data.atlasBounds.top,
+                .advance = glyph_data.advance,
+                .plane_bounds = glyph_data.planeBounds,
+                .atlas_bounds = glyph_data.atlasBounds,
+            });
+        }
+
+        return .{
+            .texture = texture,
+            .glyphs = glyphs,
+            .allocator = allocator,
+        };
+    }
+};
+```
+
+#### Acceptance Criteria
+- [ ] Build step `zig build generate-atlases` works
+- [ ] MSDF atlases generated for default fonts (Roboto 12, 16, 20, 24, 32, 48px)
+- [ ] JSON metadata correctly parsed
+- [ ] PNG textures loaded into bgfx
+- [ ] Glyph lookup by character code works
+- [ ] Generated atlases committed to repo (assets/atlases/)
+- [ ] Build documentation updated
+
+---
+
+### Task 4.3: Implement MSDF Rendering Pipeline
+
+**Status:** ⏸️ Not started
+**Priority:** Medium
+**Effort:** 6-8 hours
+**Files:** `src/renderer/renderer_2d.zig`, new shader `shaders/msdf_text.sc`
+
+#### Goal
+Add MSDF shader and rendering support to Renderer2D.
+
+#### Implementation Steps
+
+1. **Create MSDF fragment shader**
+```glsl
+// shaders/msdf_text.sc
+$input v_color0, v_texcoord0
+
+#include <bgfx_shader.sh>
+
+SAMPLER2D(s_texColor, 0);
+
+uniform vec4 u_params; // x=pxRange, y=unused, z=unused, w=unused
+
+float median(float r, float g, float b) {
+    return max(min(r, g), min(max(r, g), b));
+}
+
+void main() {
+    // Sample MSDF texture (RGB channels contain signed distance)
+    vec3 msdf_sample = texture2D(s_texColor, v_texcoord0).rgb;
+
+    // Calculate signed distance in screen pixels
+    float sd = median(msdf_sample.r, msdf_sample.g, msdf_sample.b);
+    float screen_px_distance = u_params.x * (sd - 0.5);
+
+    // Anti-aliased alpha
+    float opacity = clamp(screen_px_distance + 0.5, 0.0, 1.0);
+
+    // Output with vertex color
+    gl_FragColor = vec4(v_color0.rgb, v_color0.a * opacity);
+}
+```
+
+2. **Compile shaders in build.zig**
+```zig
+// Add shader compilation step
+const shaderc = b.dependency("bgfx", .{}).artifact("shaderc");
+
+const compile_msdf_shader_vs = b.addRunArtifact(shaderc);
+compile_msdf_shader_vs.addArgs(&[_][]const u8{
+    "-f", "shaders/vs_text.sc",
+    "-o", "shaders/vs_text.bin",
+    "--platform", "osx",
+    "--type", "vertex",
+    "-i", "external/bgfx/src",
+});
+
+const compile_msdf_shader_fs = b.addRunArtifact(shaderc);
+compile_msdf_shader_fs.addArgs(&[_][]const u8{
+    "-f", "shaders/msdf_text.sc",
+    "-o", "shaders/msdf_text.bin",
+    "--platform", "osx",
+    "--type", "fragment",
+    "-i", "external/bgfx/src",
+});
+```
+
+3. **Update Renderer2D to support MSDF**
+```zig
+// src/renderer/renderer_2d.zig
+pub const Renderer2DProper = struct {
+    // ... existing fields ...
+    msdf_program: bgfx.ProgramHandle,
+    msdf_uniform: bgfx.UniformHandle,
+
+    pub fn init(allocator: std.mem.Allocator, window_width: u32, window_height: u32) !Renderer2DProper {
+        // ... existing initialization ...
+
+        // Load MSDF shaders
+        const vs_data = try std.fs.cwd().readFileAlloc(allocator, "shaders/vs_text.bin", 100 * 1024);
+        defer allocator.free(vs_data);
+        const fs_data = try std.fs.cwd().readFileAlloc(allocator, "shaders/msdf_text.bin", 100 * 1024);
+        defer allocator.free(fs_data);
+
+        const vs_msdf = bgfx.createShader(bgfx.copy(vs_data.ptr, @intCast(vs_data.len)));
+        const fs_msdf = bgfx.createShader(bgfx.copy(fs_data.ptr, @intCast(fs_data.len)));
+        const msdf_program = bgfx.createProgram(vs_msdf, fs_msdf, true);
+
+        const msdf_uniform = bgfx.createUniform("u_params", .Vec4, 1);
+
+        return .{
+            // ... existing fields ...
+            .msdf_program = msdf_program,
+            .msdf_uniform = msdf_uniform,
+        };
+    }
+
+    pub fn drawMSDFText(
+        self: *Renderer2DProper,
+        atlas: *const MSDFAtlas,
+        text: []const u8,
+        x: f32,
+        y: f32,
+        size: f32,
+        color: Color,
+    ) void {
+        var cursor_x = x;
+
+        for (text) |char| {
+            const glyph = atlas.glyphs.get(&[_]u8{char}) orelse continue;
+
+            // Calculate quad vertices
+            const quad = calculateGlyphQuad(cursor_x, y, size, glyph);
+
+            // Add to batch (with MSDF texture)
+            self.addTexturedQuad(quad, glyph.uv_x0, glyph.uv_y0, glyph.uv_x1, glyph.uv_y1, color);
+
+            cursor_x += glyph.advance * size;
+        }
+    }
+
+    pub fn flushMSDFBatch(self: *Renderer2DProper, atlas: *const MSDFAtlas) void {
+        if (self.vertex_count == 0) return;
+
+        // Set MSDF shader uniforms
+        const px_range: f32 = 4.0; // Matches msdf-atlas-gen pxRange
+        bgfx.setUniform(self.msdf_uniform, &[_]f32{px_range, 0, 0, 0}, 1);
+
+        // Set MSDF texture
+        bgfx.setTexture(0, self.texture_sampler, atlas.texture, bgfx.SamplerFlags_None);
+
+        // Flush with MSDF program
+        self.flushWithProgram(self.msdf_program);
+    }
+};
+```
+
+#### Acceptance Criteria
+- [ ] MSDF shader compiles for all platforms (Metal, Vulkan, DirectX)
+- [ ] Text renders with MSDF atlas
+- [ ] Quality excellent at all zoom levels (test 50%-400%)
+- [ ] Sharp corners preserved
+- [ ] Performance comparable to bitmap fonts
+- [ ] No visual artifacts
+- [ ] All existing tests pass
+
+---
+
+### Task 4.4: Unified Font System API
+
+**Status:** ⏸️ Not started
+**Priority:** Medium
+**Effort:** 4-5 hours
+**Files:** New `src/renderer/font_system.zig`, updates to `src/ui/`
+
+#### Goal
+Create abstraction layer that transparently switches between MSDF and bitmap fonts.
+
+#### Implementation Steps
+
+1. **Define unified font API**
+```zig
+// src/renderer/font_system.zig
+pub const FontSystem = struct {
+    allocator: std.mem.Allocator,
+    msdf_atlases: std.StringHashMap(*MSDFAtlas),
+    bitmap_atlases: std.StringHashMap(*FontAtlas),
+    renderer: *Renderer2DProper,
+
+    pub fn init(allocator: std.mem.Allocator, renderer: *Renderer2DProper) !FontSystem {
+        return .{
+            .allocator = allocator,
+            .msdf_atlases = std.StringHashMap(*MSDFAtlas).init(allocator),
+            .bitmap_atlases = std.StringHashMap(*FontAtlas).init(allocator),
+            .renderer = renderer,
+        };
+    }
+
+    pub fn loadMSDFFont(self: *FontSystem, name: []const u8, json_path: []const u8, png_path: []const u8) !void {
+        const atlas = try self.allocator.create(MSDFAtlas);
+        atlas.* = try MSDFAtlas.loadFromFile(self.allocator, json_path, png_path);
+        try self.msdf_atlases.put(name, atlas);
+    }
+
+    pub fn loadBitmapFont(self: *FontSystem, name: []const u8, font_path: []const u8, size: f32) !void {
+        const atlas = try self.allocator.create(FontAtlas);
+        atlas.* = try FontAtlas.init(self.allocator, font_path, size, false);
+        try self.bitmap_atlases.put(name, atlas);
+    }
+
+    pub fn drawText(
+        self: *FontSystem,
+        font_name: []const u8,
+        text: []const u8,
+        x: f32,
+        y: f32,
+        size: f32,
+        color: Color,
+    ) void {
+        // Try MSDF first (best quality)
+        if (self.msdf_atlases.get(font_name)) |atlas| {
+            self.renderer.drawMSDFText(atlas, text, x, y, size, color);
+            return;
+        }
+
+        // Fallback to bitmap
+        if (self.bitmap_atlases.get(font_name)) |atlas| {
+            self.renderer.drawBitmapText(atlas, text, x, y, color);
+            return;
+        }
+
+        log.warn("Renderer", "Font '{s}' not found", .{font_name});
+    }
+
+    pub fn getTextWidth(
+        self: *FontSystem,
+        font_name: []const u8,
+        text: []const u8,
+        size: f32,
+    ) f32 {
+        if (self.msdf_atlases.get(font_name)) |atlas| {
+            return measureMSDFText(atlas, text, size);
+        }
+
+        if (self.bitmap_atlases.get(font_name)) |atlas| {
+            return atlas.measureText(text);
+        }
+
+        return 0;
+    }
+};
+```
+
+2. **Update UI widgets to use FontSystem**
+```zig
+// src/ui/context.zig
+pub const Context = struct {
+    // ... existing fields ...
+    font_system: *FontSystem,
+    default_font: []const u8,
+
+    pub fn drawText(self: *Context, text: []const u8, x: f32, y: f32, size: f32, color: Color) void {
+        self.font_system.drawText(self.default_font, text, x, y, size, color);
+    }
+};
+```
+
+3. **Initialize default fonts**
+```zig
+// src/main.zig or game initialization
+var font_system = try FontSystem.init(allocator, &renderer_2d);
+
+// Load MSDF atlases (pre-generated)
+try font_system.loadMSDFFont("ui-small", "assets/atlases/roboto-regular-12.json", "assets/atlases/roboto-regular-12.png");
+try font_system.loadMSDFFont("ui-normal", "assets/atlases/roboto-regular-16.json", "assets/atlases/roboto-regular-16.png");
+try font_system.loadMSDFFont("ui-large", "assets/atlases/roboto-regular-24.json", "assets/atlases/roboto-regular-24.png");
+try font_system.loadMSDFFont("ui-header", "assets/atlases/roboto-bold-32.json", "assets/atlases/roboto-bold-32.png");
+
+// Load bitmap font for fallback/modding
+try font_system.loadBitmapFont("fallback", "external/bgfx/examples/runtime/font/roboto-regular.ttf", 24.0);
+```
+
+#### Acceptance Criteria
+- [ ] Unified API for text rendering
+- [ ] Transparent switching between MSDF and bitmap
+- [ ] Default fonts loaded at startup
+- [ ] UI widgets use FontSystem
+- [ ] Text measurement works for both font types
+- [ ] Fallback to bitmap if MSDF missing
+- [ ] All existing tests pass
+- [ ] New tests for font switching
+
+---
+
+### Task 4.5: Documentation and Examples
+
+**Status:** ⏸️ Not started
+**Priority:** Low
+**Effort:** 2-3 hours
+**Files:** `CLAUDE.md`, `docs/font_system.md`, `examples/font_demo.zig`
+
+#### Goal
+Document hybrid font system and provide usage examples.
+
+#### Deliverables
+
+1. **Update CLAUDE.md**
+   - Hybrid font system overview
+   - Build pipeline (msdf-atlas-gen)
+   - Usage patterns
+   - When to use MSDF vs bitmap
+
+2. **Create font_system.md**
+   - Technical deep-dive
+   - MSDF shader explanation
+   - Performance characteristics
+   - Troubleshooting guide
+
+3. **Create font demo example**
+```zig
+// examples/font_demo.zig
+// Showcases all font rendering modes with zoom controls
+```
+
+#### Acceptance Criteria
+- [ ] CLAUDE.md updated with hybrid font system section
+- [ ] docs/font_system.md created
+- [ ] examples/font_demo.zig created and working
+- [ ] All font types demonstrated
+- [ ] Build instructions clear
+
+---
+
+## Phase 4 Summary
+
+**Total Effort:** 20-25 hours
+**Dependencies:** None (standalone phase)
+**Impact:** High - Professional text rendering for engine framework
+
+### Timeline
+
+| Task | Hours | Dependencies |
+|------|-------|--------------|
+| 4.1 - Fix malloc | 3-4h | None |
+| 4.2 - msdf-atlas-gen | 8-10h | Task 4.1 (optional) |
+| 4.3 - MSDF rendering | 6-8h | Task 4.2 |
+| 4.4 - Unified API | 4-5h | Tasks 4.1, 4.3 |
+| 4.5 - Documentation | 2-3h | All tasks |
+
+**Recommended Order:**
+1. Task 4.1 (unblocks optimized packing, useful standalone)
+2. Task 4.2 (can develop in parallel with 4.3)
+3. Task 4.3 (requires 4.2)
+4. Task 4.4 (requires 4.1 and 4.3)
+5. Task 4.5 (final documentation)
+
+### Benefits for Stellar Throne & Machinae
+
+1. **Professional Quality**
+   - Text scales perfectly at any zoom level
+   - Sharp corners preserved
+   - No pixelation at large sizes
+
+2. **Performance**
+   - Pre-generated atlases = zero runtime font parsing
+   - Faster startup times
+   - Smaller runtime memory footprint
+
+3. **Flexibility**
+   - MSDF for default UI fonts (best quality)
+   - Bitmap for dynamic/modding fonts (flexibility)
+   - Transparent switching (no code changes)
+
+4. **Engine Reputation**
+   - Professional rendering out-of-box
+   - Industry-standard approach
+   - Production-ready quality
+
+---
+
 ## 📊 Implementation Timeline
 
 ### Sprint 1 (Week 1-2): Critical Fixes
@@ -1555,16 +2258,34 @@ const player = try world.createEntity();
 | 10 | Task 2.4 - Resize test | 3h | ⏸️ Not started |
 | **Total** | **Phase 2 Complete** | **12h** | **0% complete** |
 
-### Sprint 3+ (Ongoing): Enhancements
+### Sprint 3 (Production Quality): Hybrid Font Rendering ⭐ **RECOMMENDED NEXT**
+**Goal:** Professional-grade text rendering for Stellar Throne & Machinae
+
+| Task | Hours | Priority | Status |
+|------|-------|----------|--------|
+| Task 4.1 - Fix stb_truetype malloc | 3-4h | **High** | ⏸️ Not started |
+| Task 4.2 - msdf-atlas-gen pipeline | 8-10h | Medium | ⏸️ Not started |
+| Task 4.3 - MSDF rendering pipeline | 6-8h | Medium | ⏸️ Not started |
+| Task 4.4 - Unified font system API | 4-5h | Medium | ⏸️ Not started |
+| Task 4.5 - Documentation & examples | 2-3h | Low | ⏸️ Not started |
+| **Total** | **Phase 4 Complete** | **23-30h** | **0% complete** |
+
+**Why This Comes Next:**
+- ✅ Task 4.1 unblocks Task 3.1 (font atlas packing)
+- ✅ Higher priority for commercial game engine (Stellar Throne/Machinae)
+- ✅ Each task provides standalone value
+- ✅ Professional text rendering = engine reputation
+
+### Sprint 4+ (Ongoing): Optional Enhancements
 **Goal:** Add polish and advanced features (pick 1-2)
 
 | Task | Hours | Priority | Status |
 |------|-------|----------|--------|
-| Task 3.1 - Font atlas optimization | 7h | Low | ⏸️ Optional |
+| Task 3.1 - Font atlas optimization | - | **MOVED** | ➜ See Phase 4, Task 4.1 |
 | Task 3.2 - UI texture atlas | 10h | Low | ⏸️ Optional |
 | Task 3.3 - Visual regression tests | 12h | Low | ⏸️ Optional |
 | Task 3.4 - API documentation | 5h | Low | ⏸️ Optional |
-| **Total** | **Phase 3 Options** | **34h** | **Optional** |
+| **Total** | **Phase 3 Options** | **27h** | **Optional** |
 
 ---
 
@@ -1799,38 +2520,47 @@ Before marking phase complete:
 
 ## 📈 Progress Tracking
 
-**Last Updated:** 2025-01-14
+**Last Updated:** 2025-01-15
 **Current Phase:** ✅ **PHASES 1 & 2 COMPLETE!**
-**Next Milestone:** Phase 3 (Optional Enhancements)
+**Next Milestone:** ⭐ Phase 4 (Hybrid Font Rendering) - RECOMMENDED
 
 ### Overall Progress ✅
 - Phase 1: ✅ 3/3 tasks complete (100%) - COMPLETE
 - Phase 2: ✅ 4/4 tasks complete (100%) - COMPLETE
-- Phase 3: 1/4 tasks attempted (Task 3.1 investigated, blocked on platform issue)
+- **Phase 4:** ⏸️ 0/5 tasks complete (0%) - **RECOMMENDED NEXT** (23-30h)
+- Phase 3: 0/3 tasks complete (0%) - Optional (27h, after Phase 4)
 - **Total Critical Path:** ✅ 7/7 tasks complete (100%)
 
 ### Time Tracking
 - Estimated total: 19 hours (critical path)
 - Time spent: ~19 hours
 - **Status:** ✅ ON TIME
+- **Next Phase Estimate:** 23-30 hours (Phase 4 - Production Quality)
 
 ### Detailed Task Completion
-**Phase 1 (High Priority):**
+**Phase 1 (High Priority):** ✅ COMPLETE
 - ✅ Task 1.1: Keyboard Support (2.5h)
 - ✅ Task 1.2: DPI Runtime Update (3h)
 - ✅ Task 1.3: Font Validation (1.5h)
 
-**Phase 2 (Medium Priority):**
+**Phase 2 (Medium Priority):** ✅ COMPLETE
 - ✅ Task 2.1: Extract Demos (4h)
 - ✅ Task 2.2: Error Context (2h)
 - ✅ Task 2.3: Document Viewport (1h)
 - ✅ Task 2.4: Resize Tests (3h)
 
-**Phase 3 (Optional Enhancements):**
-- ⚠️ Task 3.1: Font Atlas Optimization (6h) - INVESTIGATED, BLOCKED (malloc issue)
-- ⏸️ Task 3.2: UI Texture Atlas (pending)
-- ⏸️ Task 3.3: Visual Regression Tests (pending)
-- ⏸️ Task 3.4: API Documentation (pending)
+**Phase 4 (Hybrid Font Rendering):** ⭐ RECOMMENDED NEXT
+- ⏸️ Task 4.1: Fix stb_truetype malloc (3-4h) - Unblocks optimized packing
+- ⏸️ Task 4.2: msdf-atlas-gen pipeline (8-10h)
+- ⏸️ Task 4.3: MSDF rendering pipeline (6-8h)
+- ⏸️ Task 4.4: Unified font system API (4-5h)
+- ⏸️ Task 4.5: Documentation & examples (2-3h)
+
+**Phase 3 (Optional Enhancements):** After Phase 4
+- ➜ Task 3.1: **MOVED to Phase 4, Task 4.1** (malloc fix)
+- ⏸️ Task 3.2: UI Texture Atlas (10h) - pending
+- ⏸️ Task 3.3: Visual Regression Tests (12h) - pending
+- ⏸️ Task 3.4: API Documentation (5h) - pending
 
 ---
 

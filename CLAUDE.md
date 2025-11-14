@@ -4,11 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-EtherMud is a custom game engine built with Zig 0.15.1 featuring:
+EtherMud is a modern game engine framework built with Zig 0.15.1, providing production-ready foundation systems for game development. It currently powers **Stellar Throne** (4X strategy game) and **Machinae**.
+
+**Core Features:**
 - **ECS Architecture** - Entity-Component-System with sparse-set storage and generation counters
 - **UI System** - 10 widget types with automatic layout and DPI scaling
 - **Rendering** - SDL3 + bgfx for cross-platform graphics (Metal/Vulkan/DirectX/OpenGL)
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
+
+**Design Philosophy:** Framework-agnostic engine layer that any game can build upon, not tied to specific game genres.
 
 ## Build Commands
 
@@ -385,7 +389,7 @@ TOML-based data loading without external dependencies (`src/data/toml.zig`, `src
 **Features:**
 - **Pure Zig implementation** - No external TOML library dependencies
 - **Multiple search paths** - Graceful fallback for file locations
-- **MUD data loaders** - Rooms, items, NPCs from TOML files
+- **Game data loaders** - Rooms, items, NPCs from TOML files (example data included for demonstration)
 - **Type-safe parsing** - u32, i32, f32, bool, strings, arrays
 
 **Usage Pattern:**
@@ -499,7 +503,7 @@ Available in `@import("EtherMud").data.toml`:
 Game state persistence with TOML serialization (`src/save_load.zig`):
 
 **Features:**
-- **GameState struct** - Complete MUD game state representation
+- **GameState struct** - Complete game state representation (example data structure)
 - **Human-readable format** - TOML files for easy debugging and manual editing
 - **Selective persistence** - Only saves modified state (rooms, NPCs, items)
 - **Player state** - Health, mana, level, experience, gold, inventory

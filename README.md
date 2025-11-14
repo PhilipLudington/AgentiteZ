@@ -1,7 +1,10 @@
 # EtherMud
 
-A custom game engine built with modern technologies:
+A modern game engine framework built with Zig 0.15.1, providing production-ready foundation systems for game development.
 
+**Powers:** Stellar Throne (4X strategy game), Machinae
+
+**Core Technologies:**
 - **Zig 0.15.1** - Modern systems programming language
 - **SDL3** - Cross-platform multimedia library for windowing and input
 - **bgfx** - Cross-platform rendering library with Metal/Vulkan/DirectX support
