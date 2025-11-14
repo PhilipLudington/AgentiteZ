@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const toml = @import("../data/toml.zig");
+const log = @import("../log.zig");
 
 // ============================================================================
 // Room Configuration

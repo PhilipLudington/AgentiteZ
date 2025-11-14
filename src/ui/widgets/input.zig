@@ -108,21 +108,20 @@ pub fn textInput(ctx: *Context, label_text: []const u8, rect: Rect, buffer: []u8
         }
 
         // Handle special keys
-        if (ctx.input.key_pressed) |key| {
-            switch (key) {
-                .backspace => {
-                    if (buffer_len.* > 0) {
-                        buffer_len.* -= 1;
-                    }
-                },
-                .delete => {
-                    if (buffer_len.* > 0) {
-                        buffer_len.* -= 1;
-                    }
-                },
-                else => {},
+        if (ctx.input.key_backspace) {
+            if (buffer_len.* > 0) {
+                buffer_len.* -= 1;
             }
         }
+
+        if (ctx.input.key_delete) {
+            if (buffer_len.* > 0) {
+                buffer_len.* -= 1;
+            }
+        }
+
+        // TODO: Implement cursor position for proper left/right/home/end support
+        // For now, these keys don't have effect without cursor tracking
     }
 
     // Draw background

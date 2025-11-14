@@ -190,6 +190,79 @@ pub fn build(b: *std.Build) void {
         run_cmd.addArgs(args);
     }
 
+    // === Examples ===
+
+    // Minimal example - simple window with blue screen
+    const minimal_exe = b.addExecutable(.{
+        .name = "minimal",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/minimal.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "EtherMud", .module = mod },
+            },
+        }),
+    });
+
+    // Link the same libraries as main exe
+    minimal_exe.linkSystemLibrary("SDL3");
+    minimal_exe.linkLibC();
+    minimal_exe.linkLibCpp();
+
+    // Add bgfx and dependencies (same as main exe)
+    minimal_exe.addCSourceFile(.{
+        .file = b.path("external/bx/src/amalgamated.cpp"),
+        .flags = &bgfx_flags,
+    });
+    minimal_exe.addIncludePath(b.path("external/bx/include"));
+    minimal_exe.addIncludePath(b.path("external/bx/3rdparty"));
+
+    minimal_exe.addCSourceFiles(.{
+        .files = &[_][]const u8{
+            "external/bimg/src/image.cpp",
+            "external/bimg/src/image_gnf.cpp",
+        },
+        .flags = &bgfx_flags,
+    });
+    minimal_exe.addIncludePath(b.path("external/bimg/include"));
+    minimal_exe.addIncludePath(b.path("external/bimg/3rdparty"));
+    minimal_exe.addIncludePath(b.path("external/bimg/3rdparty/astc-encoder/include"));
+    minimal_exe.addIncludePath(b.path("external/bimg/3rdparty/iqa/include"));
+
+    if (is_macos) {
+        minimal_exe.addCSourceFile(.{
+            .file = b.path("external/bgfx/src/amalgamated.mm"),
+            .flags = &bgfx_flags,
+        });
+        minimal_exe.linkFramework("Metal");
+        minimal_exe.linkFramework("QuartzCore");
+        minimal_exe.linkFramework("Cocoa");
+        minimal_exe.linkFramework("IOKit");
+    } else {
+        minimal_exe.addCSourceFile(.{
+            .file = b.path("external/bgfx/src/amalgamated.cpp"),
+            .flags = &bgfx_flags,
+        });
+    }
+    minimal_exe.addIncludePath(b.path("external/bgfx/include"));
+    minimal_exe.addIncludePath(b.path("external/bgfx/3rdparty"));
+    minimal_exe.addIncludePath(b.path("external/bgfx/3rdparty/khronos"));
+
+    minimal_exe.addIncludePath(b.path("external/stb"));
+    minimal_exe.addCSourceFile(.{
+        .file = b.path("src/stb_truetype_impl.c"),
+        .flags = &.{},
+    });
+
+    b.installArtifact(minimal_exe);
+
+    // Run step for minimal example
+    const run_minimal_step = b.step("run-minimal", "Run the minimal example");
+    const run_minimal_cmd = b.addRunArtifact(minimal_exe);
+    run_minimal_cmd.step.dependOn(b.getInstallStep());
+    run_minimal_step.dependOn(&run_minimal_cmd.step);
+
     // Creates an executable that will run `test` blocks from the provided module.
     // Here `mod` needs to define a target, which is why earlier we made sure to
     // set the releative field.

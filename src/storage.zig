@@ -5,6 +5,7 @@
 const std = @import("std");
 const toml = @import("data/toml.zig");
 const config = @import("config.zig");
+const log = @import("log.zig");
 
 /// Represents the complete state of a MUD game session
 pub const GameState = struct {
@@ -260,7 +261,10 @@ pub fn saveGame(state: *const GameState, filepath: []const u8) !void {
 
     // Ensure saves directory exists
     std.fs.cwd().makeDir("saves") catch |err| {
-        if (err != error.PathAlreadyExists) return err;
+        if (err != error.PathAlreadyExists) {
+            log.err("Storage", "Failed to create saves directory: {}", .{err});
+            return err;
+        }
     };
 
     // Build full path with saves directory
@@ -268,11 +272,18 @@ pub fn saveGame(state: *const GameState, filepath: []const u8) !void {
     const full_path = try std.fmt.bufPrint(&full_path_buf, "saves/{s}", .{filepath});
 
     // Write buffer to file
-    const file = try std.fs.cwd().createFile(full_path, .{});
+    const file = std.fs.cwd().createFile(full_path, .{}) catch |err| {
+        log.err("Storage", "Failed to create save file '{s}': {}", .{ full_path, err });
+        return err;
+    };
     defer file.close();
-    try file.writeAll(buffer.items);
 
-    std.debug.print("[SAVE] Game saved to: {s}\n", .{full_path});
+    file.writeAll(buffer.items) catch |err| {
+        log.err("Storage", "Failed to write to save file '{s}': {}", .{ full_path, err });
+        return err;
+    };
+
+    log.info("Storage", "Game saved to '{s}'", .{full_path});
 }
 
 /// Load game state from TOML file
@@ -281,11 +292,19 @@ pub fn loadGame(allocator: std.mem.Allocator, filepath: []const u8) !GameState {
     var full_path_buf: [256]u8 = undefined;
     const full_path = try std.fmt.bufPrint(&full_path_buf, "saves/{s}", .{filepath});
 
-    const file = try std.fs.cwd().openFile(full_path, .{});
+    const file = std.fs.cwd().openFile(full_path, .{}) catch |err| {
+        log.err("Storage", "Failed to open save file '{s}': {}", .{ full_path, err });
+        return err;
+    };
     defer file.close();
 
-    const content = try file.readToEndAlloc(allocator, 10 * 1024 * 1024);
+    const content = file.readToEndAlloc(allocator, 10 * 1024 * 1024) catch |err| {
+        log.err("Storage", "Failed to read save file '{s}': {}", .{ full_path, err });
+        return err;
+    };
     defer allocator.free(content);
+
+    log.info("Storage", "Loading game from '{s}'", .{full_path});
 
     var state = GameState.init(allocator);
     errdefer state.deinit();

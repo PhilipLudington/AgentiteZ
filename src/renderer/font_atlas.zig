@@ -5,6 +5,22 @@
 const std = @import("std");
 const bgfx = @import("../bgfx.zig");
 const stb = @import("../stb_truetype.zig");
+const log = @import("../log.zig");
+
+/// Check if data starts with valid TrueType/OpenType magic number
+fn isValidFontMagic(data: []const u8) bool {
+    if (data.len < 4) return false;
+
+    const magic = std.mem.readInt(u32, data[0..4], .big);
+
+    return switch (magic) {
+        0x00010000 => true, // TrueType 1.0
+        0x74727565 => true, // 'true' (Mac TrueType)
+        0x4F54544F => true, // 'OTTO' (OpenType with CFF)
+        0x74797031 => true, // 'typ1' (PostScript)
+        else => false,
+    };
+}
 
 /// Glyph information in the atlas
 pub const Glyph = struct {
@@ -38,13 +54,42 @@ pub const FontAtlas = struct {
 
     /// Load a TrueType font and generate a texture atlas
     pub fn init(allocator: std.mem.Allocator, font_path: []const u8, font_size: f32, flip_uv: bool) !FontAtlas {
+        // Validate file exists and size is reasonable
+        const file = std.fs.cwd().openFile(font_path, .{}) catch |err| {
+            log.err("Renderer", "Failed to open font file '{s}': {}", .{ font_path, err });
+            return error.FontFileNotFound;
+        };
+        defer file.close();
+
+        const stat = try file.stat();
+
+        // Check minimum size (smallest valid TTF is ~1KB)
+        if (stat.size < 1024) {
+            log.err("Renderer", "Font file '{s}' too small ({d} bytes), likely corrupted", .{ font_path, stat.size });
+            return error.FontFileTooSmall;
+        }
+
+        // Check maximum size (prevent huge allocations)
+        const max_size = 10 * 1024 * 1024; // 10MB
+        if (stat.size > max_size) {
+            log.err("Renderer", "Font file '{s}' too large ({d} bytes), max is {d}", .{ font_path, stat.size, max_size });
+            return error.FontFileTooLarge;
+        }
+
         // Read font file
-        const font_data = try std.fs.cwd().readFileAlloc(allocator, font_path, 10 * 1024 * 1024);
+        const font_data = try file.readToEndAlloc(allocator, max_size);
         defer allocator.free(font_data);
 
-        // Initialize stb_truetype
+        // Validate TrueType/OpenType magic number
+        if (!isValidFontMagic(font_data)) {
+            log.err("Renderer", "Font file '{s}' has invalid magic number (not TTF/OTF)", .{font_path});
+            return error.InvalidFontFormat;
+        }
+
+        // Initialize stb_truetype with better error context
         var font_info: stb.FontInfo = undefined;
         if (stb.initFont(&font_info, font_data.ptr, 0) == 0) {
+            log.err("Renderer", "stb_truetype failed to parse font '{s}' (invalid font tables)", .{font_path});
             return error.FontInitFailed;
         }
 

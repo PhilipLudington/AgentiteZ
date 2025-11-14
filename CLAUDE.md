@@ -16,8 +16,11 @@ EtherMud is a custom game engine built with Zig 0.15.1 featuring:
 # Build the project
 zig build
 
-# Build and run
+# Build and run main demo (full UI showcase)
 zig build run
+
+# Run minimal example (simple window, ~140 lines)
+zig build run-minimal
 
 # Run tests
 zig build test
@@ -25,6 +28,32 @@ zig build test
 # Run executable directly (after building)
 ./zig-out/bin/EtherMud
 ```
+
+## Examples
+
+### Minimal Example (`examples/minimal.zig`)
+A bare-bones example showing:
+- SDL3 window creation
+- bgfx initialization
+- Main render loop
+- Blue screen (cornflower blue)
+- ~140 lines of code
+
+Perfect starting point for new users!
+
+**Run with:** `zig build run-minimal`
+
+### Full Demo (`src/main.zig`)
+Complete showcase of all engine features:
+- 10 UI widgets (buttons, checkboxes, sliders, text input, dropdowns, etc.)
+- ECS system with bouncing entities
+- Layout system with automatic positioning
+- Input state visualization
+- Font atlas text rendering
+- Configuration loading (rooms, items, NPCs)
+- Virtual resolution with DPI scaling
+
+**Run with:** `zig build run`
 
 ## System Requirements
 
@@ -225,13 +254,17 @@ layout.advance(200, 50);
 
 ### Virtual Resolution System
 
-Fixed 1920x1080 coordinate space (`src/ui/dpi.zig`):
+Fixed 1920x1080 coordinate space with two complementary systems:
 
-**Benefits:**
-- Resolution-independent game code
+#### RenderScale (`src/ui/dpi.zig`)
+High-level system for UI coordinate conversion with DPI awareness:
+
+**Features:**
+- Resolution-independent game code (1920x1080 virtual space)
 - Automatic aspect-ratio preservation
 - Letterboxing on ultra-wide displays
 - Automatic mouse coordinate conversion
+- DPI scaling support
 
 **Usage Pattern:**
 ```zig
@@ -251,6 +284,44 @@ const virtual_mouse = render_scale.screenToVirtual(physical_x, physical_y);
 // All game code uses 1920x1080 coordinates
 ui.button(&ctx, "Click Me", ui.Rect.init(960, 540, 200, 50));
 ```
+
+#### Viewport System (`src/renderer/viewport.zig`)
+Low-level letterbox viewport calculation for bgfx rendering:
+
+**Purpose:**
+- Calculate viewport position and size for maintaining aspect ratio
+- Determine letterbox bar placement (horizontal or vertical)
+- Provide scale factor for rendering
+
+**Usage Pattern:**
+```zig
+const renderer = @import("EtherMud").renderer;
+
+// Calculate letterbox viewport
+const viewport = renderer.calculateLetterboxViewport(
+    physical_width,
+    physical_height,
+    1920, // virtual width
+    1080, // virtual height
+);
+
+// Set bgfx viewport with letterboxing
+bgfx.setViewRect(
+    0,
+    viewport.x,
+    viewport.y,
+    viewport.width,
+    viewport.height,
+);
+
+// Or use with Renderer2D
+renderer_2d.setViewportOffset(viewport.x, viewport.y);
+```
+
+**Difference:**
+- **RenderScale**: UI coordinate system with DPI awareness (high-level)
+- **Viewport**: bgfx rendering viewport with letterboxing (low-level)
+- Both work together for complete resolution-independent rendering
 
 ### Input State Abstraction
 

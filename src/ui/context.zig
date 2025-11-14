@@ -121,10 +121,19 @@ pub const Context = struct {
     }
 
     /// Begin a new frame
-    pub fn beginFrame(self: *Context, input: InputState) void {
-        // Update DPI config if monitor changed or window resized
-        // TODO: Pass WindowInfo from caller to update DPI config
-        // _ = self.dpi_config.updateIfNeeded(window_info);
+    /// If window_info is provided, DPI config will be updated if window size or DPI changed
+    pub fn beginFrame(self: *Context, input: InputState, window_info: ?dpi_mod.WindowInfo) void {
+        // Update DPI config if window info provided and changed
+        if (window_info) |info| {
+            const updated = self.dpi_config.updateIfNeeded(info);
+            if (updated) {
+                log.ui.info("DPI config updated: scale={d:.2}, viewport={d}x{d}", .{
+                    self.dpi_config.render_scale.scale,
+                    self.dpi_config.render_scale.viewport_width,
+                    self.dpi_config.render_scale.viewport_height,
+                });
+            }
+        }
 
         // Apply automatic mouse coordinate scaling if needed
         var scaled_input = input;
@@ -307,7 +316,7 @@ test "Context - widget interaction" {
         .mouse_clicked = false,
         .mouse_released = false,
         .mouse_button = .left,
-    });
+    }, null); // null window_info for tests
 
     const clicked1 = ctx.registerWidget(button_id, button_rect);
     try std.testing.expect(!clicked1); // Not clicked yet
@@ -323,7 +332,7 @@ test "Context - widget interaction" {
         .mouse_clicked = true, // Click started this frame
         .mouse_released = false,
         .mouse_button = .left,
-    });
+    }, null);
 
     const clicked2 = ctx.registerWidget(button_id, button_rect);
     try std.testing.expect(!clicked2); // Not clicked until released
@@ -338,7 +347,7 @@ test "Context - widget interaction" {
         .mouse_clicked = false,
         .mouse_released = true, // Released this frame
         .mouse_button = .left,
-    });
+    }, null);
 
     const clicked3 = ctx.registerWidget(button_id, button_rect);
     try std.testing.expect(clicked3); // Now it's clicked!

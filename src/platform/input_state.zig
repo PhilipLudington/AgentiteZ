@@ -234,7 +234,16 @@ pub const InputState = struct {
             .mouse_button = .left,
             .mouse_wheel = self.mouse_wheel_y,
             .text_input = self.text_input_buf[0..self.text_input_len],
-            .key_pressed = if (self.isKeyPressed(.backspace)) Key.backspace else null,
+            // Map all keyboard keys
+            .key_backspace = self.isKeyPressed(.backspace),
+            .key_delete = self.isKeyPressed(.delete),
+            .key_enter = self.isKeyPressed(.enter),
+            .key_tab = self.isKeyPressed(.tab),
+            .key_left = self.isKeyPressed(.left),
+            .key_right = self.isKeyPressed(.right),
+            .key_home = self.isKeyPressed(.home),
+            .key_end = self.isKeyPressed(.end),
+            .key_escape = self.isKeyPressed(.escape),
         };
     }
 };

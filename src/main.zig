@@ -89,7 +89,7 @@ pub fn main() !void {
     // Get DPI scale from SDL3
     const display_id = c.SDL_GetDisplayForWindow(window);
     const content_scale = c.SDL_GetDisplayContentScale(display_id);
-    const dpi_scale = if (content_scale > 0) content_scale else 1.0;
+    var dpi_scale = if (content_scale > 0) content_scale else 1.0;
 
     std.debug.print("Window: {}x{}, DPI Scale: {d:.2}x\n", .{ window_width, window_height, dpi_scale });
 
@@ -227,6 +227,13 @@ pub fn main() !void {
                     bgfx.reset(@intCast(window_width), @intCast(window_height), bgfx.ResetFlags_Vsync, bgfx.TextureFormat.Count);
                     renderer_2d.updateWindowSize(@intCast(window_width), @intCast(window_height));
                 },
+                c.SDL_EVENT_DISPLAY_CONTENT_SCALE_CHANGED => {
+                    // DPI changed - update scale
+                    const new_display_id = c.SDL_GetDisplayForWindow(window);
+                    const new_content_scale = c.SDL_GetDisplayContentScale(new_display_id);
+                    dpi_scale = if (new_content_scale > 0) new_content_scale else 1.0;
+                    std.debug.print("DPI changed to {d:.2}x\n", .{dpi_scale});
+                },
                 else => {},
             }
 
@@ -236,6 +243,13 @@ pub fn main() !void {
 
         // Convert to UI InputState for widgets
         const input = input_state.toUIInputState();
+
+        // Prepare current window info for DPI/resize handling
+        const current_window_info = ui.WindowInfo{
+            .width = window_width,
+            .height = window_height,
+            .dpi_scale = dpi_scale,
+        };
 
         // Update ECS entities
         var pos_iter = positions.iterator();
@@ -283,8 +297,8 @@ pub fn main() !void {
         // Begin 2D renderer frame
         renderer_2d.beginFrame();
 
-        // Begin UI frame
-        ctx.beginFrame(input);
+        // Begin UI frame with window info for DPI tracking
+        ctx.beginFrame(input, current_window_info);
 
         // Draw title
         ui.label(&ctx, "EtherMud Engine Demo", .{ .x = 20, .y = 20 }, 24, ui.Color.white);

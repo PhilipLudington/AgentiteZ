@@ -224,9 +224,19 @@ pub const InputState = struct {
     mouse_released: bool, // true for one frame when released
     mouse_button: MouseButton,
 
-    // Keyboard input
+    // Keyboard input - text entry
     text_input: []const u8 = "", // Text entered this frame
-    key_pressed: ?Key = null, // Special key pressed this frame
+
+    // Keyboard input - special keys (true only on frame of press)
+    key_backspace: bool = false,
+    key_delete: bool = false,
+    key_enter: bool = false,
+    key_tab: bool = false,
+    key_left: bool = false,
+    key_right: bool = false,
+    key_home: bool = false,
+    key_end: bool = false,
+    key_escape: bool = false,
 
     // Mouse wheel
     mouse_wheel: f32 = 0, // Mouse wheel movement this frame (positive = up, negative = down)
@@ -239,7 +249,7 @@ pub const InputState = struct {
             .mouse_released = false,
             .mouse_button = .left,
             .text_input = "",
-            .key_pressed = null,
+            // All keyboard keys default to false
             .mouse_wheel = 0,
         };
     }
