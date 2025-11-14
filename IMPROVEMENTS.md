@@ -93,7 +93,7 @@ pub fn buttonEx(ctx: *UIContext, id: []const u8, text: []const u8, rect: Rect) b
 - Unknown escape sequences preserved as-is for forward compatibility
 
 #### 4. Missing Configuration Validation
-**Location:** `src/config/config_loader.zig`
+**Location:** `src/config/loader.zig`
 **Issue:** No validation of loaded config data (dangling references, invalid ranges)
 **Impact:** Invalid configs load silently, cause runtime crashes later
 **Solution:** Add validation pass after loading to check:
@@ -102,7 +102,17 @@ pub fn buttonEx(ctx: *UIContext, id: []const u8, text: []const u8, rect: Rect) b
 - NPC health is valid
 - Required fields are present
 **Effort:** 3 hours
-**Status:** ⏳ Pending
+**Status:** ✅ Complete - Comprehensive validation system implemented
+
+**Implementation Details:**
+- Created `ValidationError` error type and `ValidationErrors` collection struct
+- Added `validateRoom()` - Checks required fields (id, name, description) and validates all exits point to valid rooms
+- Added `validateItem()` - Validates required fields, checks weight/value are non-negative, warns about unrealistic values
+- Added `validateNPC()` - Validates required fields (including greeting), ensures health > 0, warns about unusual values
+- Added `validateRooms()`, `validateItems()`, `validateNPCs()` - Batch validation with error reporting
+- Added `validateAll()` - Comprehensive validation of all config data types
+- Implemented 12 comprehensive tests covering all validation scenarios
+- All tests pass with no memory leaks
 
 #### 5. No ECS System Dependency Ordering
 **Location:** `src/ecs/system.zig`
@@ -209,10 +219,10 @@ try world.registerSystem(movement_system, .{
 - [x] Fix text input buffer truncation
 
 ### Month 1: Validation & Dependencies (8 hours)
-- [ ] Implement config validation system
+- [x] Implement config validation system
 - [ ] Add ECS system dependency ordering
 - [ ] Add dependency graph tests
-- [ ] Document validation requirements
+- [x] Document validation requirements
 
 ### Month 2: Testing & Cleanup (12 hours)
 - [ ] Add comprehensive widget tests (50+ tests)
