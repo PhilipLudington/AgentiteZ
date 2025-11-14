@@ -17,8 +17,8 @@ pub fn progressBar(ctx: *Context, label_text: []const u8, rect: Rect, progress: 
     const clamped_progress = std.math.clamp(progress, 0.0, 1.0);
 
     // Draw background (empty part)
-    ctx.renderer.drawRect(rect, Color.rgb(200, 200, 200));
-    ctx.renderer.drawRectOutline(rect, Color.rgb(100, 100, 100), 1.0);
+    ctx.renderer.drawRect(rect, ctx.theme.progress_bg);
+    ctx.renderer.drawRectOutline(rect, ctx.theme.progress_border, 1.0);
 
     // Draw filled portion (progress)
     if (clamped_progress > 0.0) {
@@ -32,18 +32,18 @@ pub fn progressBar(ctx: *Context, label_text: []const u8, rect: Rect, progress: 
 
         // Color gradient based on progress (red -> yellow -> green)
         const fill_color = if (clamped_progress < 0.33)
-            Color.rgb(220, 80, 80) // Red for low progress
+            ctx.theme.progress_fill_low
         else if (clamped_progress < 0.66)
-            Color.rgb(220, 180, 60) // Yellow for medium progress
+            ctx.theme.progress_fill_med
         else
-            Color.rgb(80, 200, 80); // Green for high progress
+            ctx.theme.progress_fill_high;
 
         ctx.renderer.drawRect(fill_rect, fill_color);
     }
 
     // Draw percentage text if requested
     if (show_percentage) {
-        const text_size: f32 = 14;
+        const text_size = ctx.theme.font_size_small;
         var text_buf: [32]u8 = undefined;
         const percentage = @as(i32, @intFromFloat(clamped_progress * 100));
         const text = std.fmt.bufPrint(&text_buf, "{d}%", .{percentage}) catch "??%";
@@ -54,17 +54,17 @@ pub fn progressBar(ctx: *Context, label_text: []const u8, rect: Rect, progress: 
             .x = rect.x + (rect.width - text_bounds.x) / 2,
             .y = rect.y + rect.height / 2 - baseline_offset,
         };
-        ctx.renderer.drawText(text, text_pos, text_size, Color.black);
+        ctx.renderer.drawText(text, text_pos, text_size, ctx.theme.text_primary);
     }
 
     // Draw label above the progress bar
     if (label_text.len > 0) {
-        const label_size: f32 = 12;
+        const label_size = ctx.theme.font_size_small;
         const label_pos = Vec2{
             .x = rect.x,
             .y = rect.y - 4,
         };
-        ctx.renderer.drawText(label_text, label_pos, label_size, Color.white);
+        ctx.renderer.drawText(label_text, label_pos, label_size, ctx.theme.label_color);
     }
 }
 
@@ -93,8 +93,8 @@ pub fn renderTooltip(ctx: *Context) void {
         const delay_frames: u32 = 30; // ~0.5 seconds at 60fps
 
         if (ctx.tooltip_hover_frames >= delay_frames) {
-            const text_size: f32 = 14;
-            const padding: f32 = 8;
+            const text_size = ctx.theme.font_size_small;
+            const padding = ctx.theme.widget_padding * 2;
 
             // Measure text to size tooltip
             const text_bounds = ctx.renderer.measureText(text, text_size);
@@ -124,17 +124,17 @@ pub fn renderTooltip(ctx: *Context) void {
                 .width = tooltip_rect.width,
                 .height = tooltip_rect.height,
             };
-            ctx.renderer.drawRect(shadow_rect, Color.rgb(0, 0, 0)); // Shadow
+            ctx.renderer.drawRect(shadow_rect, ctx.theme.tooltip_shadow);
 
-            ctx.renderer.drawRect(tooltip_rect, Color.rgb(255, 255, 220)); // Light yellow background
-            ctx.renderer.drawRectOutline(tooltip_rect, Color.rgb(100, 100, 100), 1.0);
+            ctx.renderer.drawRect(tooltip_rect, ctx.theme.tooltip_bg);
+            ctx.renderer.drawRectOutline(tooltip_rect, ctx.theme.tooltip_border, 1.0);
 
             // Draw tooltip text
             const text_pos = Vec2{
                 .x = tooltip_rect.x + padding,
                 .y = tooltip_rect.y + padding,
             };
-            ctx.renderer.drawText(text, text_pos, text_size, Color.black);
+            ctx.renderer.drawText(text, text_pos, text_size, ctx.theme.tooltip_text);
         }
     } else {
         // Reset hover counter when not hovering

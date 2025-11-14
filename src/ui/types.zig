@@ -173,18 +173,84 @@ pub const Theme = struct {
     slider_track: Color,
     slider_fill: Color,
     slider_handle: Color,
+    slider_handle_hover: Color,
+    slider_handle_active: Color,
 
     // Text input colors
     input_bg: Color,
+    input_bg_focused: Color,
     input_border: Color,
+    input_border_focused: Color,
     input_text: Color,
     input_cursor: Color,
+
+    // Checkbox colors
+    checkbox_bg_normal: Color,
+    checkbox_bg_hover: Color,
+    checkbox_bg_pressed: Color,
+    checkbox_border: Color,
+    checkbox_check: Color,
 
     // General
     text_primary: Color,
     text_secondary: Color,
     border_thickness: f32,
     corner_size: f32, // For asymmetric/beveled corners
+
+    // Font sizes
+    font_size_normal: f32,    // Standard UI text (buttons, checkboxes, text input)
+    font_size_small: f32,     // Small text (dropdown items, tooltips, labels)
+    font_size_large: f32,     // Large text (titles, headers)
+
+    // Widget dimensions
+    checkbox_size: f32,       // Size of checkbox box
+    widget_spacing: f32,      // Default spacing between widgets
+    widget_padding: f32,      // Padding inside widgets (checkboxes, panels)
+
+    // Dropdown specific
+    dropdown_item_height: f32,  // Height of each dropdown item
+    dropdown_max_visible: i32,  // Maximum visible items before scrolling
+    dropdown_bg: Color,         // Dropdown header background
+    dropdown_hover: Color,      // Dropdown header hover
+    dropdown_border: Color,     // Dropdown border
+    dropdown_item_hover: Color, // Dropdown item hover
+    dropdown_item_selected: Color, // Dropdown item selected
+
+    // Progress bar colors
+    progress_bg: Color,          // Progress bar background
+    progress_border: Color,      // Progress bar border
+    progress_fill_low: Color,    // Progress fill (0-33%)
+    progress_fill_med: Color,    // Progress fill (33-66%)
+    progress_fill_high: Color,   // Progress fill (66-100%)
+
+    // Tooltip colors
+    tooltip_bg: Color,           // Tooltip background
+    tooltip_border: Color,       // Tooltip border
+    tooltip_shadow: Color,       // Tooltip shadow
+    tooltip_text: Color,         // Tooltip text
+
+    // List/Scrollbar colors
+    list_bg: Color,              // List background
+    list_border: Color,          // List border
+    list_item_hover: Color,      // List item hover
+    list_item_selected: Color,   // List item selected
+    list_text: Color,            // List text color
+    scrollbar_track: Color,      // Scrollbar track
+    scrollbar_thumb: Color,      // Scrollbar thumb
+    scrollbar_thumb_hover: Color, // Scrollbar thumb hover
+    scrollbar_thumb_active: Color, // Scrollbar thumb active
+
+    // Tab bar colors
+    tab_active: Color,           // Active tab
+    tab_inactive: Color,         // Inactive tab
+    tab_hover: Color,            // Tab hover
+    tab_border_active: Color,    // Active tab border
+    tab_border_inactive: Color,  // Inactive tab border
+    tab_text_active: Color,      // Active tab text
+    tab_text_inactive: Color,    // Inactive tab text
+
+    // Label colors
+    label_color: Color,          // Generic label text
 
     /// Create default Imperial salvaged tech theme
     pub fn imperial() Theme {
@@ -201,17 +267,74 @@ pub const Theme = struct {
 
             .slider_track = Color.oxidized_copper.darken(0.5),
             .slider_fill = Color.tech_cyan,
-            .slider_handle = Color.imperial_gold,
+            .slider_handle = Color.rgb(180, 180, 180),
+            .slider_handle_hover = Color.rgb(200, 200, 255),
+            .slider_handle_active = Color.rgb(150, 150, 255),
 
-            .input_bg = Color.deep_space,
-            .input_border = Color.oxidized_copper,
+            .input_bg = Color.rgb(240, 240, 240),
+            .input_bg_focused = Color.white,
+            .input_border = Color.rgb(150, 150, 150),
+            .input_border_focused = Color.rgb(100, 150, 255),
             .input_text = Color.worn_white,
-            .input_cursor = Color.warning_amber,
+            .input_cursor = Color.black,
+
+            .checkbox_bg_normal = Color.rgb(240, 240, 240),
+            .checkbox_bg_hover = Color.rgb(220, 220, 220),
+            .checkbox_bg_pressed = Color.rgb(160, 160, 160),
+            .checkbox_border = Color.rgb(100, 100, 100),
+            .checkbox_check = Color.rgb(50, 150, 50),
 
             .text_primary = Color.worn_white,
             .text_secondary = Color.oxidized_copper,
             .border_thickness = 2.0,
             .corner_size = 4.0,
+
+            .font_size_normal = 16.0,
+            .font_size_small = 14.0,
+            .font_size_large = 20.0,
+
+            .checkbox_size = 20.0,
+            .widget_spacing = 5.0,
+            .widget_padding = 4.0,
+
+            .dropdown_item_height = 25.0,
+            .dropdown_max_visible = 5,
+            .dropdown_bg = Color.rgb(240, 240, 240),
+            .dropdown_hover = Color.rgb(230, 230, 230),
+            .dropdown_border = Color.rgb(150, 150, 150),
+            .dropdown_item_hover = Color.rgb(220, 220, 255),
+            .dropdown_item_selected = Color.rgb(200, 200, 255),
+
+            .progress_bg = Color.rgb(200, 200, 200),
+            .progress_border = Color.rgb(100, 100, 100),
+            .progress_fill_low = Color.rgb(220, 80, 80),
+            .progress_fill_med = Color.rgb(220, 180, 60),
+            .progress_fill_high = Color.rgb(80, 200, 80),
+
+            .tooltip_bg = Color.rgb(255, 255, 220),
+            .tooltip_border = Color.rgb(100, 100, 100),
+            .tooltip_shadow = Color.rgb(0, 0, 0),
+            .tooltip_text = Color.black,
+
+            .list_bg = Color.white,
+            .list_border = Color.rgb(150, 150, 150),
+            .list_item_hover = Color.rgb(220, 220, 255),
+            .list_item_selected = Color.rgb(200, 200, 255),
+            .list_text = Color.rgb(10, 10, 10),
+            .scrollbar_track = Color.rgb(230, 230, 230),
+            .scrollbar_thumb = Color.rgb(180, 180, 180),
+            .scrollbar_thumb_hover = Color.rgb(150, 150, 150),
+            .scrollbar_thumb_active = Color.rgb(120, 120, 120),
+
+            .tab_active = Color.rgb(200, 200, 255),
+            .tab_inactive = Color.rgb(200, 200, 200),
+            .tab_hover = Color.rgb(220, 220, 220),
+            .tab_border_active = Color.rgb(100, 100, 200),
+            .tab_border_inactive = Color.rgb(150, 150, 150),
+            .tab_text_active = Color.black,
+            .tab_text_inactive = Color.rgb(80, 80, 80),
+
+            .label_color = Color.white,
         };
     }
 };

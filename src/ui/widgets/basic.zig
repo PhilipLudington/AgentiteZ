@@ -9,12 +9,68 @@ pub const Vec2 = types.Vec2;
 pub const Color = types.Color;
 
 /// Button widget with Imperial salvaged tech styling
+///
+/// IMPORTANT: Widget ID Collision Risk
+/// ====================================
+/// This function generates widget IDs by hashing the button text. If you have
+/// multiple buttons with IDENTICAL text (e.g., multiple "OK" or "Delete" buttons),
+/// they will share the same widget state, causing unexpected behavior.
+///
+/// Safe Usage:
+///   - Static UIs with unique button labels
+///   - Buttons with distinct text per screen
+///
+/// Unsafe Usage (ID Collisions):
+///   - Dynamic lists with identical button labels
+///   - Multiple modals with same button text
+///   - Repeated UI patterns (e.g., inventory items with "Use" buttons)
+///
+/// Solution for Dynamic UIs:
+///   Use `buttonWithId()` with explicit IDs instead:
+///
+///   Example:
+///   ```zig
+///   for (items, 0..) |item, i| {
+///       const id = widgetId(&[_]u8{i}); // Unique ID per item
+///       if (buttonWithId(ctx, "Delete", id, rect)) {
+///           // Handle delete for item i
+///       }
+///   }
+///   ```
+///
+/// See also: `buttonWithId()` for explicit ID control
 pub fn button(ctx: *Context, text: []const u8, rect: Rect) bool {
     const id = widgetId(text);
     return buttonWithId(ctx, text, id, rect);
 }
 
 /// Button widget with explicit ID (for cases where multiple buttons share the same text)
+///
+/// Use this when you need multiple buttons with identical text. You provide a unique ID
+/// to prevent widget state collisions.
+///
+/// Example - Dynamic item list:
+/// ```zig
+/// for (inventory_items, 0..) |item, i| {
+///     const button_rect = layout.nextRect(120, 40);
+///
+///     // Generate unique ID combining item index with a namespace
+///     const id = std.hash.Wyhash.hash(i, "inventory_delete");
+///
+///     if (buttonWithId(ctx, "Delete", id, button_rect)) {
+///         deleteItem(item);
+///     }
+/// }
+/// ```
+///
+/// Example - Multiple modals:
+/// ```zig
+/// // Modal 1
+/// if (buttonWithId(ctx, "OK", widgetId("modal1_ok"), rect1)) { }
+///
+/// // Modal 2 (different ID, same text)
+/// if (buttonWithId(ctx, "OK", widgetId("modal2_ok"), rect2)) { }
+/// ```
 pub fn buttonWithId(ctx: *Context, display_text: []const u8, id: u64, rect: Rect) bool {
     const clicked = ctx.registerWidget(id, rect);
 
@@ -33,7 +89,7 @@ pub fn buttonWithId(ctx: *Context, display_text: []const u8, id: u64, rect: Rect
     ctx.renderer.drawRectOutline(rect, ctx.theme.button_border, ctx.theme.border_thickness);
 
     // Draw button text (centered) with theme color
-    const text_size: f32 = 16;
+    const text_size = ctx.theme.font_size_normal;
     const text_bounds = ctx.renderer.measureText(display_text, text_size);
     const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
     const text_pos = Vec2{
@@ -57,7 +113,7 @@ pub fn buttonAuto(ctx: *Context, text: []const u8, width: f32, height: f32) bool
     const clicked = button(ctx, text, rect);
 
     // Advance cursor for next widget
-    ctx.advanceCursor(height, 5); // 5px spacing
+    ctx.advanceCursor(height, ctx.theme.widget_spacing);
 
     return clicked;
 }
@@ -68,6 +124,17 @@ pub fn label(ctx: *Context, text: []const u8, pos: Vec2, size: f32, color: Color
 }
 
 /// Checkbox widget
+///
+/// WARNING: Same ID collision risk as button()
+/// If you have multiple checkboxes with identical labels, use explicit IDs instead.
+///
+/// Safe: Each checkbox has unique label text
+/// Unsafe: Multiple checkboxes labeled "Enable" in dynamic lists
+///
+/// For dynamic UIs, generate unique IDs:
+/// ```zig
+/// const id = std.hash.Wyhash.hash(item_index, "checkbox_namespace");
+/// ```
 pub fn checkbox(ctx: *Context, label_text: []const u8, rect: Rect, checked: *bool) bool {
     const id = widgetId(label_text);
     const clicked = ctx.registerWidget(id, rect);
@@ -80,7 +147,7 @@ pub fn checkbox(ctx: *Context, label_text: []const u8, rect: Rect, checked: *boo
     }
 
     // Draw checkbox box
-    const box_size: f32 = 20;
+    const box_size = ctx.theme.checkbox_size;
     const box_rect = Rect{
         .x = rect.x,
         .y = rect.y + (rect.height - box_size) / 2,
@@ -88,38 +155,38 @@ pub fn checkbox(ctx: *Context, label_text: []const u8, rect: Rect, checked: *boo
         .height = box_size,
     };
 
-    // Background color based on state
+    // Background color based on state using theme
     const bg_color = if (ctx.isActive(id))
-        Color.rgb(160, 160, 160) // Pressed
+        ctx.theme.checkbox_bg_pressed
     else if (ctx.isHot(id))
-        Color.rgb(220, 220, 220) // Hover
+        ctx.theme.checkbox_bg_hover
     else
-        Color.rgb(240, 240, 240); // Normal
+        ctx.theme.checkbox_bg_normal;
 
     ctx.renderer.drawRect(box_rect, bg_color);
-    ctx.renderer.drawRectOutline(box_rect, Color.rgb(100, 100, 100), 2.0);
+    ctx.renderer.drawRectOutline(box_rect, ctx.theme.checkbox_border, ctx.theme.border_thickness);
 
     // Draw checkmark if checked
     if (checked.*) {
         // Simple checkmark using filled rect
-        const padding: f32 = 4;
+        const padding = ctx.theme.widget_padding;
         const check_rect = Rect{
             .x = box_rect.x + padding,
             .y = box_rect.y + padding,
             .width = box_size - (padding * 2),
             .height = box_size - (padding * 2),
         };
-        ctx.renderer.drawRect(check_rect, Color.rgb(50, 150, 50));
+        ctx.renderer.drawRect(check_rect, ctx.theme.checkbox_check);
     }
 
     // Draw label text
     if (label_text.len > 0) {
-        const text_size: f32 = 16;
+        const text_size = ctx.theme.font_size_normal;
         const text_x = box_rect.x + box_size + 8; // 8px gap
         const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
         const text_y = rect.y + rect.height / 2 - baseline_offset;
 
-        ctx.renderer.drawText(label_text, .{ .x = text_x, .y = text_y }, text_size, Color.white);
+        ctx.renderer.drawText(label_text, .{ .x = text_x, .y = text_y }, text_size, ctx.theme.text_primary);
     }
 
     return changed;
@@ -127,8 +194,8 @@ pub fn checkbox(ctx: *Context, label_text: []const u8, rect: Rect, checked: *boo
 
 /// Auto-layout checkbox
 pub fn checkboxAuto(ctx: *Context, label_text: []const u8, checked: *bool) bool {
-    const text_size: f32 = 16;
-    const box_size: f32 = 20;
+    const text_size = ctx.theme.font_size_normal;
+    const box_size = ctx.theme.checkbox_size;
     const text_bounds = ctx.renderer.measureText(label_text, text_size);
 
     // Width is box + gap + text
@@ -139,11 +206,11 @@ pub fn checkboxAuto(ctx: *Context, label_text: []const u8, checked: *bool) bool 
         .x = ctx.cursor.x,
         .y = ctx.cursor.y,
         .width = width,
-        .height = height + 4, // Bit of extra vertical space
+        .height = height + ctx.theme.widget_padding,
     };
 
     const changed = checkbox(ctx, label_text, rect, checked);
-    ctx.advanceCursor(height + 4, 5);
+    ctx.advanceCursor(height + ctx.theme.widget_padding, ctx.theme.widget_spacing);
 
     return changed;
 }

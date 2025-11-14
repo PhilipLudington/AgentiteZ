@@ -32,7 +32,7 @@ pub fn slider(ctx: *Context, label_text: []const u8, rect: Rect, value: f32, min
         .width = rect.width - 10,
         .height = 4,
     };
-    ctx.renderer.drawRect(track_rect, Color.rgb(100, 100, 100));
+    ctx.renderer.drawRect(track_rect, ctx.theme.slider_track);
 
     // Draw slider handle
     const normalized_value = (new_value - min_val) / (max_val - min_val);
@@ -46,23 +46,23 @@ pub fn slider(ctx: *Context, label_text: []const u8, rect: Rect, value: f32, min
     };
 
     const handle_color = if (ctx.isActive(id))
-        Color.rgb(150, 150, 255)
+        ctx.theme.slider_handle_active
     else if (ctx.isHot(id))
-        Color.rgb(200, 200, 255)
+        ctx.theme.slider_handle_hover
     else
-        Color.rgb(180, 180, 180);
+        ctx.theme.slider_handle;
 
     ctx.renderer.drawRect(handle_rect, handle_color);
-    ctx.renderer.drawRectOutline(handle_rect, Color.rgb(50, 50, 50), 2.0);
+    ctx.renderer.drawRectOutline(handle_rect, ctx.theme.slider_track.darken(0.5), ctx.theme.border_thickness);
 
     // Draw label above the slider
     if (label_text.len > 0) {
-        const label_size: f32 = 12;
+        const label_size = ctx.theme.font_size_small;
         const label_pos = Vec2{
             .x = rect.x,
             .y = rect.y - 4, // Position 4px above slider
         };
-        ctx.renderer.drawText(label_text, label_pos, label_size, Color.white);
+        ctx.renderer.drawText(label_text, label_pos, label_size, ctx.theme.label_color);
     }
 
     return new_value;
@@ -126,27 +126,27 @@ pub fn textInput(ctx: *Context, label_text: []const u8, rect: Rect, buffer: []u8
 
     // Draw background
     const bg_color = if (is_focused)
-        Color.rgb(255, 255, 255)
+        ctx.theme.input_bg_focused
     else
-        Color.rgb(240, 240, 240);
+        ctx.theme.input_bg;
     ctx.renderer.drawRect(rect, bg_color);
 
     // Draw border
     const border_color = if (is_focused)
-        Color.rgb(100, 150, 255)
+        ctx.theme.input_border_focused
     else
-        Color.rgb(150, 150, 150);
-    ctx.renderer.drawRectOutline(rect, border_color, if (is_focused) 2.0 else 1.0);
+        ctx.theme.input_border;
+    ctx.renderer.drawRectOutline(rect, border_color, if (is_focused) ctx.theme.border_thickness else 1.0);
 
     // Draw text content
-    const text_size: f32 = 16;
+    const text_size = ctx.theme.font_size_normal;
     const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
     const text_pos = Vec2{
         .x = rect.x + 5,
         .y = rect.y + rect.height / 2 - baseline_offset,
     };
     const text_to_display = buffer[0..buffer_len.*];
-    ctx.renderer.drawText(text_to_display, text_pos, text_size, Color.black);
+    ctx.renderer.drawText(text_to_display, text_pos, text_size, ctx.theme.input_text);
 
     // Draw cursor when focused
     if (is_focused) {
@@ -160,17 +160,17 @@ pub fn textInput(ctx: *Context, label_text: []const u8, rect: Rect, buffer: []u8
             .width = 2,
             .height = text_size * 0.9, // Height to cover text area
         };
-        ctx.renderer.drawRect(cursor_rect, Color.black);
+        ctx.renderer.drawRect(cursor_rect, ctx.theme.input_cursor);
     }
 
     // Draw label above the input
     if (label_text.len > 0) {
-        const label_size: f32 = 12;
+        const label_size = ctx.theme.font_size_small;
         const label_pos = Vec2{
             .x = rect.x,
             .y = rect.y - 4,
         };
-        ctx.renderer.drawText(label_text, label_pos, label_size, Color.white);
+        ctx.renderer.drawText(label_text, label_pos, label_size, ctx.theme.label_color);
     }
 }
 

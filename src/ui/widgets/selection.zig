@@ -43,21 +43,21 @@ pub fn dropdown(ctx: *Context, label_text: []const u8, rect: Rect, options: []co
 
     // Draw header background
     const bg_color = if (ctx.isHot(id))
-        Color.rgb(230, 230, 230)
+        ctx.theme.dropdown_hover
     else
-        Color.rgb(240, 240, 240);
+        ctx.theme.dropdown_bg;
     ctx.renderer.drawRect(rect, bg_color);
-    ctx.renderer.drawRectOutline(rect, Color.rgb(150, 150, 150), 1.0);
+    ctx.renderer.drawRectOutline(rect, ctx.theme.dropdown_border, 1.0);
 
     // Draw selected option text
-    const text_size: f32 = 16;
+    const text_size = ctx.theme.font_size_normal;
     const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
     const text_pos = Vec2{
         .x = rect.x + 5,
         .y = rect.y + rect.height / 2 - baseline_offset,
     };
     if (state.selected_index < options.len) {
-        ctx.renderer.drawText(options[state.selected_index], text_pos, text_size, Color.black);
+        ctx.renderer.drawText(options[state.selected_index], text_pos, text_size, ctx.theme.text_primary);
     }
 
     // Draw arrow indicator
@@ -65,7 +65,7 @@ pub fn dropdown(ctx: *Context, label_text: []const u8, rect: Rect, options: []co
     const arrow_x = rect.x + rect.width - arrow_size - 10;
     const arrow_y = rect.y + rect.height / 2;
     const arrow_text = if (state.is_open) "▲" else "▼";
-    ctx.renderer.drawText(arrow_text, .{ .x = arrow_x, .y = arrow_y - arrow_size / 2 }, arrow_size, Color.black);
+    ctx.renderer.drawText(arrow_text, .{ .x = arrow_x, .y = arrow_y - arrow_size / 2 }, arrow_size, ctx.theme.text_primary);
 
     // Defer dropdown list rendering if open (renders at end of frame on top)
     if (state.is_open) {
@@ -92,12 +92,12 @@ pub fn dropdown(ctx: *Context, label_text: []const u8, rect: Rect, options: []co
 
     // Draw label above the dropdown
     if (label_text.len > 0) {
-        const label_size: f32 = 12;
+        const label_size = ctx.theme.font_size_small;
         const label_pos = Vec2{
             .x = rect.x,
             .y = rect.y - 4,
         };
-        ctx.renderer.drawText(label_text, label_pos, label_size, Color.white);
+        ctx.renderer.drawText(label_text, label_pos, label_size, ctx.theme.label_color);
     }
 }
 
@@ -133,8 +133,8 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
     _ = ctx.registerWidget(id, rect);
 
     // Draw background
-    ctx.renderer.drawRect(rect, Color.rgb(255, 255, 255));
-    ctx.renderer.drawRectOutline(rect, Color.rgb(150, 150, 150), 1.0);
+    ctx.renderer.drawRect(rect, ctx.theme.list_bg);
+    ctx.renderer.drawRectOutline(rect, ctx.theme.list_border, 1.0);
 
     // Calculate item dimensions
     const item_height: f32 = 25;
@@ -152,7 +152,7 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
         state.scroll_offset = std.math.clamp(state.scroll_offset, 0, max_scroll);
     }
 
-    const padding: f32 = 3; // Padding from edges
+    const padding = ctx.theme.widget_padding; // Padding from edges
 
     // Calculate which items could be visible (for performance optimization)
     const start_index = @as(usize, @intFromFloat(@max(0, state.scroll_offset / item_height)));
@@ -189,19 +189,19 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
 
         // Draw item background (clipped)
         const item_bg = if (ctx.isHot(item_id))
-            Color.rgb(220, 220, 255)
+            ctx.theme.list_item_hover
         else if (state.selected_index == i)
-            Color.rgb(200, 200, 255)
+            ctx.theme.list_item_selected
         else
-            Color.rgb(255, 255, 255);
+            ctx.theme.list_bg;
         ctx.renderer.drawRect(item_rect, item_bg);
 
         // Draw item text (GPU scissor will clip it)
-        const text_size: f32 = 14;
+        const text_size = ctx.theme.font_size_small;
         const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
         const text_x = item_rect.x + 5; // Small padding from left edge
         const text_y = item_rect.y + item_height / 2 - baseline_offset;
-        ctx.renderer.drawText(items[i], Vec2.init(text_x, text_y), text_size, Color.rgb(10, 10, 10));
+        ctx.renderer.drawText(items[i], Vec2.init(text_x, text_y), text_size, ctx.theme.list_text);
     }
 
     // Draw scrollbar if needed (BEFORE ending scissor so it gets clipped too)
@@ -248,7 +248,7 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
         }
 
         // Draw track
-        ctx.renderer.drawRect(track_rect, Color.rgb(230, 230, 230));
+        ctx.renderer.drawRect(track_rect, ctx.theme.scrollbar_track);
 
         // Make scrollbar thumb interactive (drawn after track for priority)
         var scrollbar_label_buf: [128]u8 = undefined;
@@ -282,11 +282,11 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
 
         // Draw thumb with hover/active states
         const thumb_color = if (ctx.isActive(thumb_id))
-            Color.rgb(120, 120, 120)
+            ctx.theme.scrollbar_thumb_active
         else if (ctx.isHot(thumb_id))
-            Color.rgb(150, 150, 150)
+            ctx.theme.scrollbar_thumb_hover
         else
-            Color.rgb(180, 180, 180);
+            ctx.theme.scrollbar_thumb;
         ctx.renderer.drawRect(thumb_rect, thumb_color);
     }
 
@@ -298,12 +298,12 @@ pub fn scrollList(ctx: *Context, label_text: []const u8, rect: Rect, items: []co
 
     // Draw label above the list
     if (label_text.len > 0) {
-        const label_size: f32 = 12;
+        const label_size = ctx.theme.font_size_small;
         const label_pos = Vec2{
             .x = rect.x,
             .y = rect.y - 4,
         };
-        ctx.renderer.drawText(label_text, label_pos, label_size, Color.white);
+        ctx.renderer.drawText(label_text, label_pos, label_size, ctx.theme.label_color);
     }
 }
 
@@ -362,31 +362,31 @@ pub fn tabBar(ctx: *Context, id_label: []const u8, rect: Rect, tab_labels: []con
 
         // Draw tab background
         const bg_color = if (is_active)
-            Color.rgb(200, 200, 255) // Active tab - blue tint
+            ctx.theme.tab_active
         else if (ctx.isHot(tab_id))
-            Color.rgb(220, 220, 220) // Hover
+            ctx.theme.tab_hover
         else
-            Color.rgb(200, 200, 200); // Inactive
+            ctx.theme.tab_inactive;
 
         ctx.renderer.drawRect(tab_rect, bg_color);
 
         // Draw tab border
-        const border_thickness: f32 = if (is_active) 2.0 else 1.0;
+        const border_thickness: f32 = if (is_active) ctx.theme.border_thickness else 1.0;
         const border_color = if (is_active)
-            Color.rgb(100, 100, 200)
+            ctx.theme.tab_border_active
         else
-            Color.rgb(150, 150, 150);
+            ctx.theme.tab_border_inactive;
         ctx.renderer.drawRectOutline(tab_rect, border_color, border_thickness);
 
         // Draw tab label (centered)
-        const text_size: f32 = 14;
+        const text_size = ctx.theme.font_size_small;
         const text_bounds = ctx.renderer.measureText(tab_label, text_size);
         const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
         const text_pos = Vec2{
             .x = tab_x + (tab_width - text_bounds.x) / 2,
             .y = rect.y + tab_height / 2 - baseline_offset,
         };
-        const text_color = if (is_active) Color.black else Color.rgb(80, 80, 80);
+        const text_color = if (is_active) ctx.theme.tab_text_active else ctx.theme.tab_text_inactive;
         ctx.renderer.drawText(tab_label, text_pos, text_size, text_color);
     }
 
