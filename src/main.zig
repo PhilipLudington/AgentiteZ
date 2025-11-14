@@ -118,6 +118,9 @@ pub fn main() !void {
     var renderer_2d = try ui.Renderer2D.init(allocator, @intCast(window_width), @intCast(window_height));
     defer renderer_2d.deinit();
 
+    // Set DPI scale for proper HiDPI rendering (especially for scissor regions)
+    renderer_2d.setDpiScale(dpi_scale);
+
     const ui_renderer = ui.Renderer.init(&renderer_2d);
     var ctx = ui.Context.initWithDpi(allocator, ui_renderer, window_info);
     defer ctx.deinit();
@@ -258,6 +261,7 @@ pub fn main() !void {
                     const new_content_scale = c.SDL_GetDisplayContentScale(new_display_id);
                     dpi_scale = if (new_content_scale > 0) new_content_scale else 1.0;
                     std.debug.print("DPI changed to {d:.2}x\n", .{dpi_scale});
+                    renderer_2d.setDpiScale(dpi_scale);
                 },
                 else => {},
             }
