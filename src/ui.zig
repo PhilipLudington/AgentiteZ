@@ -59,3 +59,11 @@ pub const endPanel = widgets.endPanel;
 pub const DropdownState = widgets.DropdownState;
 pub const ScrollListState = widgets.ScrollListState;
 pub const TabBarState = widgets.TabBarState;
+
+// Test modules (compiled only during `zig build test`)
+test {
+    _ = @import("ui/integration_tests.zig");
+    _ = @import("ui/resize_test.zig");
+    _ = @import("ui/visual_regression_test.zig");
+    _ = @import("ui/widget_tests.zig");
+}
