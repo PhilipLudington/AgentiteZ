@@ -120,14 +120,35 @@ pub fn buttonEx(ctx: *UIContext, id: []const u8, text: []const u8, rect: Rect) b
 **Impact:** Complex games require careful manual ordering of system registration
 **Solution:** Add dependency graph with topological sort
 **Effort:** 4-5 hours
-**Status:** ⏳ Pending
+**Status:** ✅ Complete - Full dependency ordering system implemented
+
+**Implementation Details:**
+- Created `SystemId` type for unique system identification
+- Added `SystemOptions` struct with `depends_on` field
+- Implemented `SystemNode` internal structure to track dependencies
+- Implemented Kahn's algorithm for topological sort
+- Added `registerWithOptions()` method to World and SystemRegistry
+- Automatic dependency validation (checks for invalid/missing dependencies)
+- Automatic cycle detection with `CyclicDependency` error
+- Lazy sorting - only re-sorts when needed
+- Added 6 comprehensive tests covering all scenarios
+- All tests pass with no memory leaks
 
 **Example:**
 ```zig
-// Proposed API:
-try world.registerSystem(movement_system, .{
-    .depends_on = &.{ physics_system_id },
-});
+// Register systems with dependencies:
+const physics_id = try world.registerSystem(System.init(&physics_system));
+const movement_id = try world.registerSystemWithOptions(
+    System.init(&movement_system),
+    .{ .depends_on = &.{physics_id} }
+);
+const render_id = try world.registerSystemWithOptions(
+    System.init(&render_system),
+    .{ .depends_on = &.{movement_id} }
+);
+
+// Systems execute in correct order: physics -> movement -> render
+try world.update(delta_time);
 ```
 
 #### 6. Text Input Buffer Truncation
@@ -220,8 +241,8 @@ try world.registerSystem(movement_system, .{
 
 ### Month 1: Validation & Dependencies (8 hours)
 - [x] Implement config validation system
-- [ ] Add ECS system dependency ordering
-- [ ] Add dependency graph tests
+- [x] Add ECS system dependency ordering
+- [x] Add dependency graph tests
 - [x] Document validation requirements
 
 ### Month 2: Testing & Cleanup (12 hours)
