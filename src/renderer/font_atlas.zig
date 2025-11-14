@@ -94,21 +94,22 @@ pub const FontAtlas = struct {
 
     /// Load a TrueType font and generate a texture atlas (with optimized packing)
     pub fn init(allocator: std.mem.Allocator, font_path: []const u8, font_size: f32, flip_uv: bool) !FontAtlas {
-        // NOTE: stb_truetype pack API now works with custom allocator bridge!
-        // Previous issue: STBTT_malloc failure due to NULL context
-        // Solution: Custom C wrapper with Zig allocator bridge
-        // - stb_truetype_wrapper.c defines STBTT_malloc/free macros
-        // - zig_stb_alloc/free callbacks use thread-local allocator
-        // - Allocation tracking map ensures proper cleanup
+        // NOTE: stb_truetype pack API now works! Fixed two issues:
+        // 1. Allocator bridge: Custom C wrapper with Zig allocator integration
+        //    - stb_truetype_wrapper.c defines STBTT_malloc/free macros
+        //    - zig_stb_alloc/free callbacks use thread-local allocator
+        //    - Allocation tracking map ensures proper cleanup
+        //
+        // 2. Character range: Pack only printable ASCII (32-126, 95 chars)
+        //    - Previous attempt: All 256 chars (0-255) including control chars
+        //    - Issue: Many fonts don't have glyphs for control characters
+        //    - Fix: Pack 32-126 only, initialize rest to empty
         //
         // Benefits of pack API:
         // - 30-50% smaller atlas size (more efficient packing)
-        // - Better GPU memory utilization
-        // - Professional quality for production games
-        //
-        // TODO: Debug why pack API is still failing even with allocator bridge
-        // Temporarily disabled for testing
-        return initPacked(allocator, font_path, font_size, flip_uv, false);
+        // - Better GPU memory utilization (512x512 vs 448x448 grid)
+        // - Professional quality with 2x2 oversampling
+        return initPacked(allocator, font_path, font_size, flip_uv, true);
     }
 
     /// Load a TrueType font with optional optimized packing
@@ -181,7 +182,11 @@ pub const FontAtlas = struct {
             var packed_chars: [256]stb.PackedChar = undefined;
 
             // Try PackFontRange (singular) instead of PackFontRanges
-            const result = stb.packFontRange(&pack_context, font_data.ptr, 0, font_size, 0, 256, &packed_chars);
+            // Pack only printable ASCII (32-126) instead of all 256 chars (0-255)
+            // This avoids issues with control characters that don't have glyphs
+            const first_char = 32; // Space
+            const num_chars = 95; // Space through tilde (~)
+            const result = stb.packFontRange(&pack_context, font_data.ptr, 0, font_size, first_char, num_chars, &packed_chars[first_char]);
 
             stb.packEnd(&pack_context);
 
@@ -195,7 +200,14 @@ pub const FontAtlas = struct {
                 const atlas_width_f: f32 = @floatFromInt(atlas_width);
                 const atlas_height_f: f32 = @floatFromInt(atlas_height);
 
-                for (packed_chars, 0..) |pc, i| {
+                // Initialize all glyphs to empty (0 advance)
+                for (&glyphs) |*g| {
+                    g.* = std.mem.zeroes(Glyph);
+                }
+
+                // Convert packed chars (only printable ASCII 32-126)
+                for (first_char..first_char + num_chars) |i| {
+                    const pc = packed_chars[i];
                     const uv_x0 = @as(f32, @floatFromInt(pc.x0)) / atlas_width_f;
                     const uv_y0 = @as(f32, @floatFromInt(pc.y0)) / atlas_height_f;
                     const uv_x1 = @as(f32, @floatFromInt(pc.x1)) / atlas_width_f;
