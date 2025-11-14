@@ -73,6 +73,7 @@ pub const getBakedQuad = c.stbtt_GetBakedQuad;
 // Packing (advanced texture atlas generation)
 pub const packBegin = c.stbtt_PackBegin;
 pub const packEnd = c.stbtt_PackEnd;
+pub const packFontRange = c.stbtt_PackFontRange;
 pub const packFontRanges = c.stbtt_PackFontRanges;
 pub const packFontRangesGatherRects = c.stbtt_PackFontRangesGatherRects;
 pub const packFontRangesPackRects = c.stbtt_PackFontRangesPackRects;

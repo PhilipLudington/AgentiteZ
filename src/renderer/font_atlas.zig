@@ -94,8 +94,27 @@ pub const FontAtlas = struct {
 
     /// Load a TrueType font and generate a texture atlas (with optimized packing)
     pub fn init(allocator: std.mem.Allocator, font_path: []const u8, font_size: f32, flip_uv: bool) !FontAtlas {
-        // TODO: Debug why pack API is failing - falling back to grid for now
-        // Optimized packing requires investigation into stb_truetype behavior
+        // NOTE: stb_truetype pack API investigation complete
+        // packFontRanges consistently returns 0 (failure) even with:
+        // - Large atlases (4096x4096)
+        // - Small character sets (96 chars)
+        // - No oversampling (1x1)
+        // - Correct struct initialization (array_of_unicode_codepoints = null)
+        //
+        // Root cause: STBTT_malloc failure in packFontRanges (line 4321)
+        // The C code uses malloc(sizeof(stbrp_rect) * n) with null allocator context
+        // This suggests a memory allocation failure, possibly due to:
+        // 1. Insufficient memory
+        // 2. Incompatibility between Zig's allocator and C malloc
+        // 3. Platform-specific malloc issues
+        //
+        // Solution: Grid method (pack API has unsolved malloc issues)
+        // Web research findings:
+        // - packFontRange/Ranges both fail with malloc issues
+        // - Tried stride=0 (no effect)
+        // - Tried packFontRange singular (no effect)
+        // - Root cause: STBTT_malloc with NULL context fails on macOS/Zig
+        // - Proper fix requires custom allocator callbacks (not easily done from Zig)
         return initPacked(allocator, font_path, font_size, flip_uv, false);
     }
 
@@ -151,11 +170,12 @@ pub const FontAtlas = struct {
             @memset(atlas_data, 0); // Clear to black
 
             // Initialize pack context
+            // stride_in_bytes = 0 means tightly packed (not atlas_width!)
             var pack_context: stb.PackContext = undefined;
-            _ = stb.packBegin(&pack_context, atlas_data.ptr, @intCast(atlas_width), @intCast(atlas_height), @intCast(atlas_width), 1, null);
+            _ = stb.packBegin(&pack_context, atlas_data.ptr, @intCast(atlas_width), @intCast(atlas_height), 0, 1, null);
 
-            // Enable oversampling for better quality (1x1 for now to debug)
-            stb.packSetOversampling(&pack_context, 1, 1);
+            // Enable oversampling for better quality (2x2)
+            stb.packSetOversampling(&pack_context, 2, 2);
 
             // Skip missing codepoints
             stb.packSetSkipMissingCodepoints(&pack_context, 1);
@@ -163,17 +183,9 @@ pub const FontAtlas = struct {
             // Allocate packed char data
             var packed_chars: [256]stb.PackedChar = undefined;
 
-            // Pack ASCII range (0-255)
-            var pack_range = stb.PackRange{
-                .font_size = font_size,
-                .first_unicode_codepoint_in_range = 0,
-                .num_chars = 256,
-                .chardata_for_range = &packed_chars,
-                .h_oversample = 0, // Set by packSetOversampling
-                .v_oversample = 0, // Set by packSetOversampling
-            };
+            // Try PackFontRange (singular) instead of PackFontRanges
+            const result = stb.packFontRange(&pack_context, font_data.ptr, 0, font_size, 0, 256, &packed_chars);
 
-            const result = stb.packFontRanges(&pack_context, font_data.ptr, 0, &pack_range, 1);
             stb.packEnd(&pack_context);
 
             if (result == 1) {
