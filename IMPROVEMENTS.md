@@ -215,12 +215,12 @@ try world.update(delta_time);
 - Config loaders - Basic functionality
 - Layout geometry - Core algorithms
 
-**Needs Improvement:**
-- **Input State** - No edge case tests (0 tests)
-- **Error Conditions** - Limited failure mode testing
-
 **Completed:**
 - **UI Widgets** - 37 comprehensive tests covering state transitions and edge cases (100% coverage of all widgets)
+- **Input State** - 21 comprehensive tests covering edge cases, frame boundaries, and state transitions
+
+**Needs Improvement:**
+- **Error Conditions** - Limited failure mode testing
 
 ---
 
@@ -247,8 +247,8 @@ try world.update(delta_time);
 
 ### Month 2: Testing & Cleanup (12 hours)
 - [x] Add comprehensive widget tests (37 tests covering all widgets)
-- [ ] Add input state edge case tests
-- [ ] Remove deprecated OldFontAtlas code
+- [x] Add input state edge case tests (21 tests covering all edge cases)
+- [x] Remove deprecated OldFontAtlas code (already removed)
 - [ ] Add error condition tests
 
 **Total Effort:** ~30 hours for all improvements
