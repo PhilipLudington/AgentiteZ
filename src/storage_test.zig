@@ -1,13 +1,13 @@
-// save_load_test.zig
+// storage_test.zig
 // Tests for game state serialization and deserialization
 
 const std = @import("std");
-const save_load = @import("save_load.zig");
-const GameState = save_load.GameState;
-const PlayerState = save_load.PlayerState;
-const RoomState = save_load.RoomState;
-const NPCState = save_load.NPCState;
-const DroppedItem = save_load.DroppedItem;
+const storage = @import("storage.zig");
+const GameState = storage.GameState;
+const PlayerState = storage.PlayerState;
+const RoomState = storage.RoomState;
+const NPCState = storage.NPCState;
+const DroppedItem = storage.DroppedItem;
 
 test "GameState init and deinit" {
     const allocator = std.testing.allocator;
@@ -31,10 +31,10 @@ test "Save and load empty game state" {
     defer state.deinit();
 
     // Save to file
-    try save_load.saveGame(&state, test_filename);
+    try storage.saveGame(&state, test_filename);
 
     // Load from file
-    var loaded_state = try save_load.loadGame(allocator, test_filename);
+    var loaded_state = try storage.loadGame(allocator, test_filename);
     defer loaded_state.deinit();
 
     // Verify loaded state
@@ -66,10 +66,10 @@ test "Save and load player state" {
     defer state.deinit();
 
     // Save to file
-    try save_load.saveGame(&state, test_filename);
+    try storage.saveGame(&state, test_filename);
 
     // Load from file
-    var loaded_state = try save_load.loadGame(allocator, test_filename);
+    var loaded_state = try storage.loadGame(allocator, test_filename);
     defer loaded_state.deinit();
 
     // Verify player state
@@ -99,10 +99,10 @@ test "Save and load inventory" {
     defer state.deinit();
 
     // Save to file
-    try save_load.saveGame(&state, test_filename);
+    try storage.saveGame(&state, test_filename);
 
     // Load from file
-    var loaded_state = try save_load.loadGame(allocator, test_filename);
+    var loaded_state = try storage.loadGame(allocator, test_filename);
     defer loaded_state.deinit();
 
     // Verify inventory
@@ -144,10 +144,10 @@ test "Save and load modified rooms" {
     try state.modified_rooms.put(room2_key, room2);
 
     // Save to file
-    try save_load.saveGame(&state, test_filename);
+    try storage.saveGame(&state, test_filename);
 
     // Load from file
-    var loaded_state = try save_load.loadGame(allocator, test_filename);
+    var loaded_state = try storage.loadGame(allocator, test_filename);
     defer loaded_state.deinit();
 
     // Verify modified rooms
@@ -201,10 +201,10 @@ test "Save and load modified NPCs" {
     try state.modified_npcs.put(npc2_key, npc2);
 
     // Save to file
-    try save_load.saveGame(&state, test_filename);
+    try storage.saveGame(&state, test_filename);
 
     // Load from file
-    var loaded_state = try save_load.loadGame(allocator, test_filename);
+    var loaded_state = try storage.loadGame(allocator, test_filename);
     defer loaded_state.deinit();
 
     // Verify modified NPCs
@@ -247,10 +247,10 @@ test "Save and load dropped items" {
     });
 
     // Save to file
-    try save_load.saveGame(&state, test_filename);
+    try storage.saveGame(&state, test_filename);
 
     // Load from file
-    var loaded_state = try save_load.loadGame(allocator, test_filename);
+    var loaded_state = try storage.loadGame(allocator, test_filename);
     defer loaded_state.deinit();
 
     // Verify dropped items
@@ -323,10 +323,10 @@ test "Save and load complex game state" {
     defer state.deinit();
 
     // Save to file
-    try save_load.saveGame(&state, test_filename);
+    try storage.saveGame(&state, test_filename);
 
     // Load from file
-    var loaded_state = try save_load.loadGame(allocator, test_filename);
+    var loaded_state = try storage.loadGame(allocator, test_filename);
     defer loaded_state.deinit();
 
     // Verify all aspects of the loaded state

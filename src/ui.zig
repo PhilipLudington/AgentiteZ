@@ -7,7 +7,7 @@ pub const context = @import("ui/context.zig");
 pub const widgets = @import("ui/widgets.zig");
 pub const dpi = @import("ui/dpi.zig");
 pub const layout = @import("ui/layout.zig");
-pub const renderer_2d_proper = @import("ui/renderer_2d_proper.zig");
+pub const renderer_2d = @import("ui/renderer_2d.zig");
 pub const config = @import("ui/config.zig");
 
 // Re-export commonly used types
@@ -32,7 +32,7 @@ pub const LayoutAlign = layout.LayoutAlign;
 // Re-export UI components
 pub const Context = context.Context;
 pub const Renderer = renderer.Renderer;
-pub const Renderer2DProper = renderer_2d_proper.Renderer2DProper;
+pub const Renderer2D = renderer_2d.Renderer2D;
 
 // Re-export widget functions
 pub const button = widgets.button;

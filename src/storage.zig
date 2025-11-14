@@ -1,4 +1,4 @@
-// save_load.zig
+// storage.zig
 // Game state serialization and deserialization to TOML format
 // Adapted from StellarThroneZig for MUD-specific game state
 

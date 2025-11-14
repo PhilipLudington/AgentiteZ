@@ -105,7 +105,7 @@ pub fn main() !void {
         .dpi_scale = dpi_scale,
     };
 
-    var renderer_2d = try ui.Renderer2DProper.init(allocator, @intCast(window_width), @intCast(window_height));
+    var renderer_2d = try ui.Renderer2D.init(allocator, @intCast(window_width), @intCast(window_height));
     defer renderer_2d.deinit();
 
     const ui_renderer = ui.Renderer.init(&renderer_2d);

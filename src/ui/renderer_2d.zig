@@ -239,8 +239,8 @@ const TextureBatch = struct {
     }
 };
 
-/// Proper 2D Renderer with batching
-pub const Renderer2DProper = struct {
+/// 2D Renderer with batching
+pub const Renderer2D = struct {
     allocator: std.mem.Allocator,
     window_width: u32,
     window_height: u32,
@@ -268,7 +268,7 @@ pub const Renderer2DProper = struct {
     scissor_rect: Rect,
     scissor_enabled: bool,
 
-    pub fn init(allocator: std.mem.Allocator, window_width: u32, window_height: u32) !Renderer2DProper {
+    pub fn init(allocator: std.mem.Allocator, window_width: u32, window_height: u32) !Renderer2D {
         // Initialize shader programs
         const shader_programs = try shaders.ShaderPrograms.init();
 
@@ -339,7 +339,7 @@ pub const Renderer2DProper = struct {
         };
     }
 
-    pub fn deinit(self: *Renderer2DProper) void {
+    pub fn deinit(self: *Renderer2D) void {
         self.shader_programs.deinit();
         self.color_batch.deinit();
         self.texture_batch.deinit();
@@ -347,13 +347,13 @@ pub const Renderer2DProper = struct {
         atlas.deinit();
     }
 
-    pub fn updateWindowSize(self: *Renderer2DProper, width: u32, height: u32) void {
+    pub fn updateWindowSize(self: *Renderer2D, width: u32, height: u32) void {
         self.window_width = width;
         self.window_height = height;
     }
 
     /// Begin frame - clear batches
-    pub fn beginFrame(self: *Renderer2DProper) void {
+    pub fn beginFrame(self: *Renderer2D) void {
         self.color_batch.clear();
         self.texture_batch.clear();
         // Reset scissor to full window at frame start
@@ -367,13 +367,13 @@ pub const Renderer2DProper = struct {
     }
 
     /// End frame - flush batches
-    pub fn endFrame(self: *Renderer2DProper) void {
+    pub fn endFrame(self: *Renderer2D) void {
         self.flushColorBatch();
         self.flushTextureBatch();
     }
 
     /// Flush colored draw batch to GPU
-    fn flushColorBatch(self: *Renderer2DProper) void {
+    fn flushColorBatch(self: *Renderer2D) void {
         if (self.color_batch.vertices.items.len == 0) return;
 
         // Allocate transient buffers
@@ -451,7 +451,7 @@ pub const Renderer2DProper = struct {
     }
 
     /// Flush textured draw batch to GPU
-    fn flushTextureBatch(self: *Renderer2DProper) void {
+    fn flushTextureBatch(self: *Renderer2D) void {
         if (self.texture_batch.vertices.items.len == 0) return;
 
         // Allocate transient buffers
@@ -532,7 +532,7 @@ pub const Renderer2DProper = struct {
     }
 
     /// Draw a filled rectangle
-    pub fn drawRect(self: *Renderer2DProper, rect: Rect, color: Color) void {
+    pub fn drawRect(self: *Renderer2D, rect: Rect, color: Color) void {
         self.color_batch.addQuad(rect.x, rect.y, rect.width, rect.height, color) catch |err| {
             log.renderer.warn("Failed to add rectangle to batch, skipping: {}", .{err});
             return;
@@ -540,7 +540,7 @@ pub const Renderer2DProper = struct {
     }
 
     /// Draw rectangle outline
-    pub fn drawRectOutline(self: *Renderer2DProper, rect: Rect, color: Color, thickness: f32) void {
+    pub fn drawRectOutline(self: *Renderer2D, rect: Rect, color: Color, thickness: f32) void {
         // Top
         self.drawRect(.{ .x = rect.x, .y = rect.y, .width = rect.width, .height = thickness }, color);
         // Bottom
@@ -552,7 +552,7 @@ pub const Renderer2DProper = struct {
     }
 
     /// Draw text using font atlas
-    pub fn drawText(self: *Renderer2DProper, text: []const u8, pos: Vec2, size: f32, color: Color) void {
+    pub fn drawText(self: *Renderer2D, text: []const u8, pos: Vec2, size: f32, color: Color) void {
         const scale = size / self.font_atlas.font_size;
         var cursor_x = pos.x;
         const cursor_y = pos.y;
@@ -597,7 +597,7 @@ pub const Renderer2DProper = struct {
     }
 
     /// Measure text size
-    pub fn measureText(self: *Renderer2DProper, text: []const u8, font_size: f32) Vec2 {
+    pub fn measureText(self: *Renderer2D, text: []const u8, font_size: f32) Vec2 {
         const scale = font_size / self.font_atlas.font_size;
         var width: f32 = 0;
 
@@ -620,7 +620,7 @@ pub const Renderer2DProper = struct {
 
     /// Get baseline offset for vertically centering text
     /// When you want to center text in a box, use: baseline_y = box_center_y + getBaselineOffset(font_size)
-    pub fn getBaselineOffset(self: *Renderer2DProper, font_size: f32) f32 {
+    pub fn getBaselineOffset(self: *Renderer2D, font_size: f32) f32 {
         const scale = font_size / self.font_atlas.font_size;
         // For vertical centering, the baseline should be offset by half the cap height
         // Cap height is approximately ascent * 0.7 for most fonts, but we'll use ascent/2 as a simple approximation
@@ -630,7 +630,7 @@ pub const Renderer2DProper = struct {
     }
 
     /// Begin scissor
-    pub fn beginScissor(self: *Renderer2DProper, rect: Rect) void {
+    pub fn beginScissor(self: *Renderer2D, rect: Rect) void {
         // Flush current batches before changing scissor
         self.flushColorBatch();
         self.flushTextureBatch();
@@ -641,7 +641,7 @@ pub const Renderer2DProper = struct {
     }
 
     /// End scissor - resets to full window bounds
-    pub fn endScissor(self: *Renderer2DProper) void {
+    pub fn endScissor(self: *Renderer2D) void {
         // CRITICAL: Do NOT flush here - just change the scissor state
         // The caller should flush before calling endScissor if needed
         // This allows the next draw operations to use the full window scissor
@@ -659,22 +659,22 @@ pub const Renderer2DProper = struct {
     }
 
     /// Flush all pending draw batches
-    pub fn flushBatches(self: *Renderer2DProper) void {
+    pub fn flushBatches(self: *Renderer2D) void {
         self.flushColorBatch();
         self.flushTextureBatch();
     }
 
     /// Switch to overlay view (for dropdowns, tooltips, modals)
-    pub fn pushOverlayView(self: *Renderer2DProper) void {
+    pub fn pushOverlayView(self: *Renderer2D) void {
         self.view_id = self.overlay_view_id;
     }
 
     /// Switch back to default view
-    pub fn popOverlayView(self: *Renderer2DProper) void {
+    pub fn popOverlayView(self: *Renderer2D) void {
         self.view_id = self.default_view_id;
     }
 
-    pub fn isNull(self: *Renderer2DProper) bool {
+    pub fn isNull(self: *Renderer2D) bool {
         _ = self;
         return false;
     }

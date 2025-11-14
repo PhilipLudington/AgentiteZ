@@ -1,4 +1,4 @@
-// config_loader.zig
+// loader.zig
 // TOML configuration loader for EtherMud
 // Provides data structures and loaders for MUD game content
 

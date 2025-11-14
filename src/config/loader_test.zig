@@ -1,11 +1,11 @@
-// config_loader_test.zig
+// loader_test.zig
 // Tests for the config loading system
 
 const std = @import("std");
-const config_loader = @import("config_loader.zig");
+const loader = @import("loader.zig");
 
 test "load rooms from TOML" {
-    var room_map = try config_loader.loadRooms(std.testing.allocator);
+    var room_map = try loader.loadRooms(std.testing.allocator);
     defer {
         var iter = room_map.valueIterator();
         while (iter.next()) |room| {
@@ -37,7 +37,7 @@ test "load rooms from TOML" {
 }
 
 test "load items from TOML" {
-    var item_map = try config_loader.loadItems(std.testing.allocator);
+    var item_map = try loader.loadItems(std.testing.allocator);
     defer {
         var iter = item_map.valueIterator();
         while (iter.next()) |item| {
@@ -71,7 +71,7 @@ test "load items from TOML" {
 }
 
 test "load NPCs from TOML" {
-    var npc_map = try config_loader.loadNPCs(std.testing.allocator);
+    var npc_map = try loader.loadNPCs(std.testing.allocator);
     defer {
         var iter = npc_map.valueIterator();
         while (iter.next()) |npc| {

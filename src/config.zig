@@ -1,21 +1,21 @@
 // config.zig
 // Configuration loading module
 
-pub const config_loader = @import("config/config_loader.zig");
+pub const loader = @import("config/loader.zig");
 
 // Re-export commonly used types
-pub const RoomData = config_loader.RoomData;
-pub const ItemData = config_loader.ItemData;
-pub const NPCData = config_loader.NPCData;
-pub const Exit = config_loader.Exit;
+pub const RoomData = loader.RoomData;
+pub const ItemData = loader.ItemData;
+pub const NPCData = loader.NPCData;
+pub const Exit = loader.Exit;
 
 // Re-export loader functions
-pub const loadRooms = config_loader.loadRooms;
-pub const loadItems = config_loader.loadItems;
-pub const loadNPCs = config_loader.loadNPCs;
+pub const loadRooms = loader.loadRooms;
+pub const loadItems = loader.loadItems;
+pub const loadNPCs = loader.loadNPCs;
 
 // Tests
 test {
     @import("std").testing.refAllDecls(@This());
-    _ = @import("config/config_loader_test.zig");
+    _ = @import("config/loader_test.zig");
 }

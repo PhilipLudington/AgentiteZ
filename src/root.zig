@@ -9,7 +9,7 @@ pub const ecs = @import("ecs.zig");
 pub const platform = @import("platform.zig");
 pub const data = @import("data.zig");
 pub const config = @import("config.zig");
-pub const save_load = @import("save_load.zig");
+pub const storage = @import("storage.zig");
 pub const renderer = @import("renderer.zig");
 
 pub fn bufferedPrint() !void {
