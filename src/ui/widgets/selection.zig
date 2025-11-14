@@ -57,7 +57,7 @@ pub fn dropdown(ctx: *Context, label_text: []const u8, rect: Rect, options: []co
         .y = rect.y + rect.height / 2 - baseline_offset,
     };
     if (state.selected_index < options.len) {
-        ctx.renderer.drawText(options[state.selected_index], text_pos, text_size, ctx.theme.text_primary);
+        ctx.renderer.drawText(options[state.selected_index], text_pos, text_size, ctx.theme.dropdown_text);
     }
 
     // Draw arrow indicator
@@ -65,7 +65,7 @@ pub fn dropdown(ctx: *Context, label_text: []const u8, rect: Rect, options: []co
     const arrow_x = rect.x + rect.width - arrow_size - 10;
     const arrow_y = rect.y + rect.height / 2;
     const arrow_text = if (state.is_open) "▲" else "▼";
-    ctx.renderer.drawText(arrow_text, .{ .x = arrow_x, .y = arrow_y - arrow_size / 2 }, arrow_size, ctx.theme.text_primary);
+    ctx.renderer.drawText(arrow_text, .{ .x = arrow_x, .y = arrow_y - arrow_size / 2 }, arrow_size, ctx.theme.dropdown_text);
 
     // Defer dropdown list rendering if open (renders at end of frame on top)
     if (state.is_open) {

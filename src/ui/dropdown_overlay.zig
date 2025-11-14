@@ -59,7 +59,7 @@ pub fn renderDropdownList(ctx: *Context, overlay: anytype) void {
             .x = item_rect.x + 5,
             .y = item_rect.y + overlay.item_height / 2 - item_baseline_offset,
         };
-        ctx.renderer.drawText(option, item_text_pos, overlay.text_size, Color.rgb(10, 10, 10));
+        ctx.renderer.drawText(option, item_text_pos, overlay.text_size, ctx.theme.dropdown_text);
     }
 
     // CRITICAL: Flush dropdown geometry immediately

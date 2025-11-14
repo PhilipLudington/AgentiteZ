@@ -213,6 +213,7 @@ pub const Theme = struct {
     dropdown_bg: Color,         // Dropdown header background
     dropdown_hover: Color,      // Dropdown header hover
     dropdown_border: Color,     // Dropdown border
+    dropdown_text: Color,       // Dropdown text color
     dropdown_item_hover: Color, // Dropdown item hover
     dropdown_item_selected: Color, // Dropdown item selected
 
@@ -302,6 +303,7 @@ pub const Theme = struct {
             .dropdown_bg = Color.rgb(240, 240, 240),
             .dropdown_hover = Color.rgb(230, 230, 230),
             .dropdown_border = Color.rgb(150, 150, 150),
+            .dropdown_text = Color.black,
             .dropdown_item_hover = Color.rgb(220, 220, 255),
             .dropdown_item_selected = Color.rgb(200, 200, 255),
 
