@@ -268,6 +268,13 @@ pub const Renderer2D = struct {
     scissor_rect: Rect,
     scissor_enabled: bool,
 
+    // DPI scale for HiDPI displays (1.0 for standard, 2.0 for Retina, etc.)
+    dpi_scale: f32,
+
+    // Viewport offset for letterboxing (in physical pixels)
+    viewport_offset_x: i32,
+    viewport_offset_y: i32,
+
     pub fn init(allocator: std.mem.Allocator, window_width: u32, window_height: u32) !Renderer2D {
         // Initialize shader programs
         const shader_programs = try shaders.ShaderPrograms.init();
@@ -336,6 +343,9 @@ pub const Renderer2D = struct {
             .overlay_view_id = 1,
             .scissor_rect = Rect{ .x = 0, .y = 0, .width = @floatFromInt(window_width), .height = @floatFromInt(window_height) },
             .scissor_enabled = false,
+            .dpi_scale = 1.0, // Default to 1.0 for standard DPI
+            .viewport_offset_x = 0, // Default to no offset
+            .viewport_offset_y = 0,
         };
     }
 
@@ -352,18 +362,30 @@ pub const Renderer2D = struct {
         self.window_height = height;
     }
 
+    /// Set DPI scale for HiDPI displays (call after init or when DPI changes)
+    pub fn setDpiScale(self: *Renderer2D, dpi_scale: f32) void {
+        self.dpi_scale = dpi_scale;
+    }
+
+    /// Set viewport offset for letterboxing (in physical pixels)
+    pub fn setViewportOffset(self: *Renderer2D, offset_x: i32, offset_y: i32) void {
+        self.viewport_offset_x = offset_x;
+        self.viewport_offset_y = offset_y;
+    }
+
     /// Begin frame - clear batches
     pub fn beginFrame(self: *Renderer2D) void {
         self.color_batch.clear();
         self.texture_batch.clear();
-        // Reset scissor to full window at frame start
+        // Reset scissor to full window at frame start, but DISABLED
+        // Scissor should only be enabled when explicitly requested via beginScissor()
         self.scissor_rect = Rect{
             .x = 0,
             .y = 0,
             .width = @floatFromInt(self.window_width),
             .height = @floatFromInt(self.window_height),
         };
-        self.scissor_enabled = true;
+        self.scissor_enabled = false;
     }
 
     /// End frame - flush batches
@@ -425,12 +447,16 @@ pub const Renderer2D = struct {
         bgfx.setTransientIndexBuffer(&tib, 0, num_indices);
 
         // Apply scissor if enabled - call setScissor fresh each time
+        // IMPORTANT: Scale by DPI for HiDPI displays (BGFX expects physical pixels)
+        // CRITICAL: Add viewport offset for letterboxing
         if (self.scissor_enabled) {
+            const scissor_x = @as(i32, @intFromFloat(self.scissor_rect.x * self.dpi_scale)) + self.viewport_offset_x;
+            const scissor_y = @as(i32, @intFromFloat(self.scissor_rect.y * self.dpi_scale)) + self.viewport_offset_y;
             _ = bgfx.setScissor(
-                @intFromFloat(self.scissor_rect.x),
-                @intFromFloat(self.scissor_rect.y),
-                @intFromFloat(self.scissor_rect.width),
-                @intFromFloat(self.scissor_rect.height)
+                @intCast(scissor_x),
+                @intCast(scissor_y),
+                @intFromFloat(self.scissor_rect.width * self.dpi_scale),
+                @intFromFloat(self.scissor_rect.height * self.dpi_scale)
             );
         }
 
@@ -506,12 +532,16 @@ pub const Renderer2D = struct {
         bgfx.setTexture(0, self.shader_programs.texture_sampler, self.font_atlas.texture, 0xffffffff);
 
         // Apply scissor if enabled - call setScissor fresh each time
+        // IMPORTANT: Scale by DPI for HiDPI displays (BGFX expects physical pixels)
+        // CRITICAL: Add viewport offset for letterboxing
         if (self.scissor_enabled) {
+            const scissor_x = @as(i32, @intFromFloat(self.scissor_rect.x * self.dpi_scale)) + self.viewport_offset_x;
+            const scissor_y = @as(i32, @intFromFloat(self.scissor_rect.y * self.dpi_scale)) + self.viewport_offset_y;
             _ = bgfx.setScissor(
-                @intFromFloat(self.scissor_rect.x),
-                @intFromFloat(self.scissor_rect.y),
-                @intFromFloat(self.scissor_rect.width),
-                @intFromFloat(self.scissor_rect.height)
+                @intCast(scissor_x),
+                @intCast(scissor_y),
+                @intFromFloat(self.scissor_rect.width * self.dpi_scale),
+                @intFromFloat(self.scissor_rect.height * self.dpi_scale)
             );
         }
 
@@ -640,22 +670,15 @@ pub const Renderer2D = struct {
         self.scissor_enabled = true;
     }
 
-    /// End scissor - resets to full window bounds
+    /// End scissor - disables scissor clipping
     pub fn endScissor(self: *Renderer2D) void {
-        // CRITICAL: Do NOT flush here - just change the scissor state
-        // The caller should flush before calling endScissor if needed
-        // This allows the next draw operations to use the full window scissor
+        // CRITICAL: Flush current batches before changing scissor state
+        // This ensures any content drawn with scissor is rendered correctly
+        self.flushColorBatch();
+        self.flushTextureBatch();
 
-        // Reset scissor to full window bounds
-        self.scissor_rect = Rect{
-            .x = 0,
-            .y = 0,
-            .width = @floatFromInt(self.window_width),
-            .height = @floatFromInt(self.window_height),
-        };
-
-        // Keep scissor enabled but with full window bounds
-        self.scissor_enabled = true;
+        // Disable scissor - subsequent draws will render to full viewport
+        self.scissor_enabled = false;
     }
 
     /// Flush all pending draw batches
