@@ -94,7 +94,9 @@ pub const FontAtlas = struct {
 
     /// Load a TrueType font and generate a texture atlas (with optimized packing)
     pub fn init(allocator: std.mem.Allocator, font_path: []const u8, font_size: f32, flip_uv: bool) !FontAtlas {
-        return initPacked(allocator, font_path, font_size, flip_uv, true);
+        // TODO: Debug why pack API is failing - falling back to grid for now
+        // Optimized packing requires investigation into stb_truetype behavior
+        return initPacked(allocator, font_path, font_size, flip_uv, false);
     }
 
     /// Load a TrueType font with optional optimized packing
@@ -152,8 +154,8 @@ pub const FontAtlas = struct {
             var pack_context: stb.PackContext = undefined;
             _ = stb.packBegin(&pack_context, atlas_data.ptr, @intCast(atlas_width), @intCast(atlas_height), @intCast(atlas_width), 1, null);
 
-            // Enable oversampling for better quality (2x2)
-            stb.packSetOversampling(&pack_context, 2, 2);
+            // Enable oversampling for better quality (1x1 for now to debug)
+            stb.packSetOversampling(&pack_context, 1, 1);
 
             // Skip missing codepoints
             stb.packSetSkipMissingCodepoints(&pack_context, 1);
@@ -217,14 +219,16 @@ pub const FontAtlas = struct {
             } else {
                 // Packing failed, try larger atlas
                 allocator.free(atlas_data);
-                atlas_width *= 2;
-                atlas_height *= 2;
-                std.debug.print("FontAtlas: Packing failed, trying {d}x{d}...\n", .{ atlas_width, atlas_height });
 
-                if (atlas_width > 4096 or atlas_height > 4096) {
+                // Check if we can grow before doubling
+                if (atlas_width >= 4096 or atlas_height >= 4096) {
                     log.err("Renderer", "Font atlas packing failed even with 4096x4096 atlas", .{});
                     return error.FontPackingFailed;
                 }
+
+                atlas_width *= 2;
+                atlas_height *= 2;
+                std.debug.print("FontAtlas: Packing failed, trying {d}x{d}...\n", .{ atlas_width, atlas_height });
             }
         }
 
