@@ -373,6 +373,13 @@ pub const Renderer2D = struct {
         self.viewport_offset_y = offset_y;
     }
 
+    /// Set viewport parameters from ViewportInfo (convenience method)
+    /// This combines setDpiScale() and setViewportOffset() in one call
+    pub fn setViewportFromInfo(self: *Renderer2D, viewport: @import("../renderer/viewport.zig").ViewportInfo) void {
+        self.setDpiScale(viewport.scale);
+        self.setViewportOffset(@intCast(viewport.x), @intCast(viewport.y));
+    }
+
     /// Begin frame - clear batches
     pub fn beginFrame(self: *Renderer2D) void {
         self.color_batch.clear();
