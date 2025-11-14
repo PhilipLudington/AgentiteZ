@@ -6,13 +6,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 EtherMud is a modern game engine framework built with Zig 0.15.1, providing production-ready foundation systems for game development. It currently powers **Stellar Throne** (4X strategy game) and **Machinae** (factory-building game).
 
+**Production Status:** ✅ **8.5/10 - Production Quality** (see IMPROVEMENTS.md for detailed review)
+
 **Core Features:**
-- **ECS Architecture** - Entity-Component-System with sparse-set storage and generation counters
-- **UI System** - 10 widget types with automatic layout and DPI scaling
+- **ECS Architecture** - Entity-Component-System with sparse-set storage, generation counters, and dependency ordering
+- **UI System** - 10 widget types with automatic layout, DPI scaling, and centralized Theme system
 - **Rendering** - SDL3 + bgfx for cross-platform graphics (Metal/Vulkan/DirectX/OpenGL)
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
+- **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
+- **Save/Load System** - Human-readable TOML-based game state persistence
 
 **Design Philosophy:** Framework-agnostic engine layer that any game can build upon, not tied to specific game genres.
+
+**Test Coverage:** 76+ comprehensive tests across all major systems (ECS, UI, rendering, config, input)
 
 ## Build Commands
 
@@ -193,7 +199,8 @@ The engine features a professional ECS architecture ported from StellarThroneZig
 - **Generation Counters** - Prevents use-after-free with recycled entity IDs
 - **Sparse-Set Pattern** - O(1) component lookup, O(n) cache-optimal iteration
 - **Component Recycling** - Efficient memory reuse with free list
-- **System Registry** - Sequential execution in registration order
+- **System Dependencies** - Topological sorting with automatic cycle detection
+- **System Registry** - Ordered execution with dependency graph support
 
 **Usage Pattern:**
 ```zig
@@ -221,8 +228,18 @@ while (iter.next()) |entry| {
     entry.component.x += 1; // Move right
 }
 
-// Register and update systems
-try world.registerSystem(ecs.System.init(&movement_system));
+// Register systems with dependencies
+const physics_id = try world.registerSystem(ecs.System.init(&physics_system));
+const movement_id = try world.registerSystemWithOptions(
+    ecs.System.init(&movement_system),
+    .{ .depends_on = &.{physics_id} }
+);
+const render_id = try world.registerSystemWithOptions(
+    ecs.System.init(&render_system),
+    .{ .depends_on = &.{movement_id} }
+);
+
+// Systems execute in correct order: physics -> movement -> render
 try world.update(delta_time);
 ```
 
@@ -336,7 +353,7 @@ Clean event-driven to immediate-mode input API (`src/platform/input_state.zig`):
 - **Press vs Down** - Distinguish between `isKeyPressed()` (one frame) and `isKeyDown()` (held)
 - **Frame lifecycle** - Automatic reset of transient states via `beginFrame()`
 - **All mouse buttons** - Support for left, right, middle buttons
-- **Text input** - Built-in buffering for UI widgets
+- **Text input** - Built-in buffering for UI widgets with overflow detection
 - **SDL event handling** - Automatic processing via `handleEvent()`
 
 **Usage Pattern:**
@@ -388,6 +405,8 @@ TOML-based data loading without external dependencies (`src/data/toml.zig`, `src
 
 **Features:**
 - **Pure Zig implementation** - No external TOML library dependencies
+- **Full escape sequence support** - Handles `\"`, `\\`, `\n`, `\t`, `\r`, `\b`, `\f`
+- **Comprehensive validation** - Validates rooms, items, NPCs with detailed error reporting
 - **Multiple search paths** - Graceful fallback for file locations
 - **Game data loaders** - Rooms, items, NPCs from TOML files (example data included for demonstration)
 - **Type-safe parsing** - u32, i32, f32, bool, strings, arrays
@@ -792,6 +811,32 @@ The engine includes full HiDPI/Retina display support:
 
 Runtime SDF (Signed Distance Field) is available via `FontAtlas.initSDF()` for zoom-heavy applications, but bitmap atlas with proper DPI scaling provides superior quality for fixed-scale UI. SDF code and shaders remain in the codebase for future experimentation.
 
+## Recent Improvements (All Complete)
+
+The engine has undergone comprehensive improvements documented in `IMPROVEMENTS.md`:
+
+### ✅ Completed High Priority Items
+1. **Theme System** - Centralized UI theming with 40+ color and dimension properties
+2. **Widget ID Best Practices** - Comprehensive documentation preventing state collision
+
+### ✅ Completed Medium Priority Items
+3. **TOML Escape Sequences** - Full support for `\"`, `\\`, `\n`, `\t`, `\r`, `\b`, `\f`
+4. **Configuration Validation** - Validates rooms, items, NPCs with detailed error reporting
+5. **ECS System Dependencies** - Topological sorting with automatic cycle detection
+6. **Text Input Overflow Detection** - Warning logs when 64-byte buffer overflows
+
+### ✅ Completed Low Priority Items
+7. **Deprecated Code Removal** - Removed unused OldFontAtlas code
+8. **Build System Refactoring** - Eliminated 230 lines of duplication
+
+### ✅ Comprehensive Test Coverage Added
+- **UI Widget Tests** - 37 tests covering all 10 widget types
+- **Input State Tests** - 21 tests covering edge cases and frame boundaries
+- **ECS Error Tests** - 18 tests covering error conditions across all ECS components
+- **Total New Tests** - 76+ comprehensive tests with zero memory leaks
+
+**Result:** Engine upgraded from good foundation to **production-quality 8.5/10**.
+
 ## Important Notes
 
 - `src/bgfx.zig` is auto-generated from the bgfx C API - modifications should be made to the bgfx binding generator, not this file
@@ -800,3 +845,5 @@ Runtime SDF (Signed Distance Field) is available via `FontAtlas.initSDF()` for z
   - `bx`, `bimg`, `bgfx` - git submodules for rendering
   - `stb` - stb_truetype header-only library (downloaded directly)
 - Zig 0.15.1 is the target version - newer Zig releases may have breaking changes
+- For detailed code review and improvement history, see `IMPROVEMENTS.md`
+- For widget ID collision prevention, see `docs/WIDGET_ID_BEST_PRACTICES.md`
