@@ -32,6 +32,7 @@ pub const InputState = struct {
     // Text input buffer (for UI widgets)
     text_input_buf: [64]u8,
     text_input_len: usize,
+    text_input_overflow: bool, // Set to true when buffer overflows
 
     pub fn init(allocator: std.mem.Allocator) InputState {
         return .{
@@ -53,6 +54,7 @@ pub const InputState = struct {
             .keys_released = std.AutoHashMap(Key, bool).init(allocator),
             .text_input_buf = [_]u8{0} ** 64,
             .text_input_len = 0,
+            .text_input_overflow = false,
         };
     }
 
@@ -75,6 +77,7 @@ pub const InputState = struct {
 
         // Clear text input
         self.text_input_len = 0;
+        self.text_input_overflow = false;
 
         // Clear keyboard pressed/released maps
         self.keys_pressed.clearRetainingCapacity();
@@ -151,9 +154,17 @@ pub const InputState = struct {
                 // Handle text input for UI widgets
                 if (event.text.text) |text_ptr| {
                     const text_len = std.mem.len(text_ptr);
-                    if (text_len > 0 and self.text_input_len + text_len < self.text_input_buf.len) {
-                        @memcpy(self.text_input_buf[self.text_input_len..][0..text_len], text_ptr[0..text_len]);
-                        self.text_input_len += text_len;
+                    if (text_len > 0) {
+                        if (self.text_input_len + text_len < self.text_input_buf.len) {
+                            @memcpy(self.text_input_buf[self.text_input_len..][0..text_len], text_ptr[0..text_len]);
+                            self.text_input_len += text_len;
+                        } else {
+                            // Buffer overflow - set flag and log warning
+                            if (!self.text_input_overflow) {
+                                self.text_input_overflow = true;
+                                std.log.warn("[InputState] Text input buffer overflow (max {d} bytes). Input truncated.", .{self.text_input_buf.len});
+                            }
+                        }
                     }
                 }
             },
@@ -222,6 +233,12 @@ pub const InputState = struct {
     /// Get the text input buffer for the current frame
     pub fn getTextInput(self: *const InputState) []const u8 {
         return self.text_input_buf[0..self.text_input_len];
+    }
+
+    /// Check if text input buffer overflowed this frame
+    /// Returns true if input was truncated due to buffer size limit
+    pub fn hasTextInputOverflow(self: *const InputState) bool {
+        return self.text_input_overflow;
     }
 
     /// Convert to UI InputState for widget system

@@ -34,11 +34,58 @@ pub fn parseBool(value: []const u8) bool {
 }
 
 /// Remove surrounding quotes from string
+/// NOTE: This is the simple version that doesn't handle escape sequences.
+/// Use unescapeString() for proper escape sequence handling.
 pub fn trimQuotes(value: []const u8) []const u8 {
     if (value.len >= 2 and value[0] == '"' and value[value.len - 1] == '"') {
         return value[1 .. value.len - 1];
     }
     return value;
+}
+
+/// Process escape sequences in a TOML string value
+/// Handles: \", \\, \n, \t, \r, \b, \f
+/// Returns newly allocated string with escape sequences processed
+pub fn unescapeString(allocator: std.mem.Allocator, value: []const u8) ![]u8 {
+    // Remove quotes first
+    const trimmed = trimQuotes(value);
+
+    // Quick check if there are any escape sequences
+    if (std.mem.indexOf(u8, trimmed, "\\") == null) {
+        // No escape sequences, just duplicate the string
+        return try allocator.dupe(u8, trimmed);
+    }
+
+    // Process escape sequences
+    var result = std.ArrayList(u8){};
+    errdefer result.deinit(allocator);
+
+    var i: usize = 0;
+    while (i < trimmed.len) {
+        if (trimmed[i] == '\\' and i + 1 < trimmed.len) {
+            // Process escape sequence
+            switch (trimmed[i + 1]) {
+                '"' => try result.append(allocator, '"'),
+                '\\' => try result.append(allocator, '\\'),
+                'n' => try result.append(allocator, '\n'),
+                't' => try result.append(allocator, '\t'),
+                'r' => try result.append(allocator, '\r'),
+                'b' => try result.append(allocator, '\x08'), // backspace
+                'f' => try result.append(allocator, '\x0C'), // form feed
+                else => {
+                    // Unknown escape sequence, keep as-is
+                    try result.append(allocator, '\\');
+                    try result.append(allocator, trimmed[i + 1]);
+                },
+            }
+            i += 2;
+        } else {
+            try result.append(allocator, trimmed[i]);
+            i += 1;
+        }
+    }
+
+    return result.toOwnedSlice(allocator);
 }
 
 /// Parse TOML array of u8 values [1, 2, 3] -> ArrayList(u8)
@@ -65,6 +112,7 @@ pub fn parseU8Array(allocator: std.mem.Allocator, value: []const u8) !std.ArrayL
 }
 
 /// Parse TOML array of strings ["a", "b", "c"] -> ArrayList([]const u8)
+/// Properly handles escaped quotes within strings
 pub fn parseStringArray(allocator: std.mem.Allocator, value: []const u8) !std.ArrayList([]const u8) {
     var result = std.ArrayList([]const u8){};
 
@@ -79,14 +127,23 @@ pub fn parseStringArray(allocator: std.mem.Allocator, value: []const u8) !std.Ar
     var i: usize = 0;
 
     while (i < inner.len) : (i += 1) {
+        if (inner[i] == '\\' and in_string and i + 1 < inner.len) {
+            // Skip escaped character (including escaped quotes)
+            i += 1;
+            continue;
+        }
+
         if (inner[i] == '"') {
             if (!in_string) {
                 in_string = true;
                 current_start = i + 1;
             } else {
-                // End of string
+                // End of string - process escape sequences
                 const str = inner[current_start..i];
-                try result.append(allocator, try allocator.dupe(u8, str));
+                const temp_str = try std.fmt.allocPrint(allocator, "\"{s}\"", .{str});
+                defer allocator.free(temp_str);
+                const unescaped = try unescapeString(allocator, temp_str);
+                try result.append(allocator, unescaped);
                 in_string = false;
             }
         }
@@ -206,4 +263,93 @@ test "parseStringArray" {
     try std.testing.expectEqual(@as(usize, 2), arr.items.len);
     try std.testing.expectEqualStrings("hello", arr.items[0]);
     try std.testing.expectEqualStrings("world", arr.items[1]);
+}
+
+test "unescapeString - no escapes" {
+    const result = try unescapeString(std.testing.allocator, "\"hello world\"");
+    defer std.testing.allocator.free(result);
+    try std.testing.expectEqualStrings("hello world", result);
+}
+
+test "unescapeString - escaped quote" {
+    const result = try unescapeString(std.testing.allocator, "\"She said \\\"hello\\\"\"");
+    defer std.testing.allocator.free(result);
+    try std.testing.expectEqualStrings("She said \"hello\"", result);
+}
+
+test "unescapeString - escaped backslash" {
+    const result = try unescapeString(std.testing.allocator, "\"C:\\\\path\\\\to\\\\file\"");
+    defer std.testing.allocator.free(result);
+    try std.testing.expectEqualStrings("C:\\path\\to\\file", result);
+}
+
+test "unescapeString - newline" {
+    const result = try unescapeString(std.testing.allocator, "\"Line 1\\nLine 2\"");
+    defer std.testing.allocator.free(result);
+    try std.testing.expectEqualStrings("Line 1\nLine 2", result);
+}
+
+test "unescapeString - tab" {
+    const result = try unescapeString(std.testing.allocator, "\"Column1\\tColumn2\"");
+    defer std.testing.allocator.free(result);
+    try std.testing.expectEqualStrings("Column1\tColumn2", result);
+}
+
+test "unescapeString - carriage return" {
+    const result = try unescapeString(std.testing.allocator, "\"Line\\rReturn\"");
+    defer std.testing.allocator.free(result);
+    try std.testing.expectEqualStrings("Line\rReturn", result);
+}
+
+test "unescapeString - backspace" {
+    const result = try unescapeString(std.testing.allocator, "\"Hello\\b\"");
+    defer std.testing.allocator.free(result);
+    try std.testing.expectEqualStrings("Hello\x08", result);
+}
+
+test "unescapeString - form feed" {
+    const result = try unescapeString(std.testing.allocator, "\"Page\\fBreak\"");
+    defer std.testing.allocator.free(result);
+    try std.testing.expectEqualStrings("Page\x0CBreak", result);
+}
+
+test "unescapeString - multiple escapes" {
+    const result = try unescapeString(std.testing.allocator, "\"Line 1\\nLine 2\\tTabbed\\\\Backslash\"");
+    defer std.testing.allocator.free(result);
+    try std.testing.expectEqualStrings("Line 1\nLine 2\tTabbed\\Backslash", result);
+}
+
+test "unescapeString - unknown escape sequence" {
+    const result = try unescapeString(std.testing.allocator, "\"Keep\\xUnknown\"");
+    defer std.testing.allocator.free(result);
+    // Unknown escape sequences are kept as-is
+    try std.testing.expectEqualStrings("Keep\\xUnknown", result);
+}
+
+test "parseStringArray - with escaped quotes" {
+    var arr = try parseStringArray(std.testing.allocator, "[\"Say \\\"hi\\\"\", \"Path: C:\\\\Users\"]");
+    defer {
+        for (arr.items) |item| {
+            std.testing.allocator.free(item);
+        }
+        arr.deinit(std.testing.allocator);
+    }
+
+    try std.testing.expectEqual(@as(usize, 2), arr.items.len);
+    try std.testing.expectEqualStrings("Say \"hi\"", arr.items[0]);
+    try std.testing.expectEqualStrings("Path: C:\\Users", arr.items[1]);
+}
+
+test "parseStringArray - with newlines and tabs" {
+    var arr = try parseStringArray(std.testing.allocator, "[\"Line1\\nLine2\", \"Col1\\tCol2\"]");
+    defer {
+        for (arr.items) |item| {
+            std.testing.allocator.free(item);
+        }
+        arr.deinit(std.testing.allocator);
+    }
+
+    try std.testing.expectEqual(@as(usize, 2), arr.items.len);
+    try std.testing.expectEqualStrings("Line1\nLine2", arr.items[0]);
+    try std.testing.expectEqualStrings("Col1\tCol2", arr.items[1]);
 }
