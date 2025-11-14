@@ -1,5 +1,6 @@
 //! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
+const builtin = @import("builtin");
 
 pub const sdl = @import("sdl.zig");
 pub const bgfx = @import("bgfx.zig");
@@ -11,6 +12,15 @@ pub const data = @import("data.zig");
 pub const config = @import("config.zig");
 pub const storage = @import("storage.zig");
 pub const renderer = @import("renderer.zig");
+
+// Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
+// when building tests. These are needed by C code even if not directly referenced from Zig.
+// Only needed in test mode to avoid duplicate symbols in regular builds.
+comptime {
+    if (builtin.is_test) {
+        _ = stb_truetype;
+    }
+}
 
 pub fn bufferedPrint() !void {
     // Stdout is for the actual output of your application, for example if you

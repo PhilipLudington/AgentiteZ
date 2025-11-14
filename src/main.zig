@@ -105,7 +105,7 @@ pub fn main() !void {
     var demo_state = DemoState{};
 
     std.debug.print("\nBasic demo running. Press ESC to exit.\n", .{});
-    std.debug.print("Run 'zig build run-demo' for the full UI showcase!\n\n", .{});
+    std.debug.print("Run 'zig build run' for the full UI showcase!\n\n", .{});
 
     // Main loop
     var running = true;
@@ -161,7 +161,7 @@ pub fn main() !void {
 
         // Simple UI demo
         ui.label(&ctx, "EtherMud Engine - Basic Demo", .{ .x = 20, .y = 20 }, 24, ui.Color.white);
-        ui.label(&ctx, "Run 'zig build run-demo' for the full widget showcase!", .{ .x = 20, .y = 50 }, 14, ui.Color.gray);
+        ui.label(&ctx, "Run 'zig build run' for the full widget showcase!", .{ .x = 20, .y = 50 }, 14, ui.Color.gray);
 
         ctx.cursor = .{ .x = 20, .y = 100 };
 
