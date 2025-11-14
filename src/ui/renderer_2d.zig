@@ -64,6 +64,10 @@ const FontAtlas = struct {
     line_gap: f32,
 
     fn init(allocator: std.mem.Allocator, font_data: []const u8, font_size: f32) !FontAtlas {
+        // Set thread-local allocator for C callbacks
+        stb.setThreadAllocator(allocator);
+        defer stb.clearThreadAllocator();
+
         const atlas_width: u32 = 1024;
         const atlas_height: u32 = 1024;
 

@@ -5,6 +5,111 @@ pub const c = @cImport({
     @cInclude("stb_truetype.h");
 });
 
+// =============================================================================
+// Allocator Bridge for stb_truetype C API
+// =============================================================================
+// stb_truetype's pack API uses STBTT_malloc/free with NULL context.
+// We bridge Zig's allocator to C via thread-local storage and allocation tracking.
+
+/// Thread-local allocator for C callbacks
+threadlocal var current_allocator: ?std.mem.Allocator = null;
+
+/// Allocation tracking for proper deallocation
+/// Maps pointer -> (size, alignment) so we can free correctly
+const AllocationInfo = struct {
+    slice: []u8,
+};
+
+var allocation_map: std.AutoHashMap(usize, AllocationInfo) = undefined;
+var map_mutex: std.Thread.Mutex = .{};
+var map_initialized: bool = false;
+
+/// Initialize the allocation tracking system (call once at startup)
+pub fn initAllocatorBridge(allocator: std.mem.Allocator) void {
+    map_mutex.lock();
+    defer map_mutex.unlock();
+
+    if (!map_initialized) {
+        allocation_map = std.AutoHashMap(usize, AllocationInfo).init(allocator);
+        map_initialized = true;
+    }
+}
+
+/// Deinitialize the allocation tracking system (call at shutdown)
+pub fn deinitAllocatorBridge() void {
+    map_mutex.lock();
+    defer map_mutex.unlock();
+
+    if (map_initialized) {
+        allocation_map.deinit();
+        map_initialized = false;
+    }
+}
+
+/// Set the allocator for the current thread (call before using pack API)
+pub fn setThreadAllocator(allocator: std.mem.Allocator) void {
+    current_allocator = allocator;
+}
+
+/// Clear the thread allocator (call after pack API completes)
+pub fn clearThreadAllocator() void {
+    current_allocator = null;
+}
+
+/// C callback for allocation
+export fn zig_stb_alloc(size: usize) callconv(.c) ?*anyopaque {
+    const allocator = current_allocator orelse {
+        std.debug.print("ERROR: zig_stb_alloc called with no allocator set!\n", .{});
+        return null;
+    };
+
+    const bytes = allocator.alloc(u8, size) catch |err| {
+        std.debug.print("ERROR: zig_stb_alloc failed: {}\n", .{err});
+        return null;
+    };
+
+    const ptr = @intFromPtr(bytes.ptr);
+
+    // Track allocation
+    map_mutex.lock();
+    defer map_mutex.unlock();
+
+    allocation_map.put(ptr, .{ .slice = bytes }) catch |err| {
+        std.debug.print("ERROR: Failed to track allocation: {}\n", .{err});
+        allocator.free(bytes);
+        return null;
+    };
+
+    return bytes.ptr;
+}
+
+/// C callback for deallocation
+export fn zig_stb_free(ptr: ?*anyopaque) callconv(.c) void {
+    if (ptr == null) return;
+
+    const allocator = current_allocator orelse {
+        std.debug.print("ERROR: zig_stb_free called with no allocator set!\n", .{});
+        return;
+    };
+
+    const ptr_val = @intFromPtr(ptr.?);
+
+    // Retrieve allocation info
+    map_mutex.lock();
+    defer map_mutex.unlock();
+
+    const info = allocation_map.get(ptr_val) orelse {
+        std.debug.print("ERROR: zig_stb_free called with untracked pointer!\n", .{});
+        return;
+    };
+
+    // Free the memory
+    allocator.free(info.slice);
+
+    // Remove from tracking map
+    _ = allocation_map.remove(ptr_val);
+}
+
 // Re-export commonly used types and functions with Zig-friendly names
 
 // Core types

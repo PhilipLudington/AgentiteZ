@@ -151,11 +151,11 @@ pub fn build(b: *std.Build) void {
     exe.addIncludePath(b.path("external/bgfx/3rdparty"));
     exe.addIncludePath(b.path("external/bgfx/3rdparty/khronos"));
 
-    // Add stb_truetype include path and implementation
+    // Add stb_truetype include path and custom allocator wrapper
     exe.addIncludePath(b.path("external/stb"));
     exe.addCSourceFile(.{
-        .file = b.path("src/stb_truetype_impl.c"),
-        .flags = &.{},
+        .file = b.path("src/stb_truetype_wrapper.c"),
+        .flags = &.{"-std=c99"},
     });
 
     // This declares intent for the executable to be installed into the
@@ -251,8 +251,8 @@ pub fn build(b: *std.Build) void {
 
     minimal_exe.addIncludePath(b.path("external/stb"));
     minimal_exe.addCSourceFile(.{
-        .file = b.path("src/stb_truetype_impl.c"),
-        .flags = &.{},
+        .file = b.path("src/stb_truetype_wrapper.c"),
+        .flags = &.{"-std=c99"},
     });
 
     b.installArtifact(minimal_exe);

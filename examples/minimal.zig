@@ -2,7 +2,13 @@ const std = @import("std");
 const EtherMud = @import("EtherMud");
 const sdl = EtherMud.sdl;
 const bgfx = EtherMud.bgfx;
+const stb = EtherMud.stb_truetype; // Required for stb_truetype allocator exports
 const c = sdl.c;
+
+comptime {
+    // Force inclusion of stb_truetype exports even if not directly used
+    _ = stb;
+}
 
 pub fn main() !void {
     std.debug.print("EtherMud Minimal Example - Starting...\n", .{});

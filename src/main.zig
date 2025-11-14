@@ -2,6 +2,7 @@ const std = @import("std");
 const EtherMud = @import("EtherMud");
 const sdl = EtherMud.sdl;
 const bgfx = EtherMud.bgfx;
+const stb = EtherMud.stb_truetype;
 const ui = EtherMud.ui;
 const ecs = EtherMud.ecs;
 const platform = EtherMud.platform;
@@ -97,6 +98,10 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
+
+    // Initialize stb_truetype allocator bridge
+    stb.initAllocatorBridge(allocator);
+    defer stb.deinitAllocatorBridge();
 
     // Create DPI-aware UI context
     const window_info = ui.WindowInfo{
