@@ -6,3 +6,8 @@ pub const ComponentIterator = @import("ecs/component.zig").ComponentIterator;
 pub const System = @import("ecs/system.zig").System;
 pub const SystemRegistry = @import("ecs/system.zig").SystemRegistry;
 pub const World = @import("ecs/world.zig").World;
+
+// Include error tests
+test {
+    _ = @import("ecs/error_tests.zig");
+}

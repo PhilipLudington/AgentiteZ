@@ -44,26 +44,7 @@ pub fn build(b: *std.Build) void {
     // Add stb_truetype include path to module for @cImport
     mod.addIncludePath(b.path("external/stb"));
 
-    // === Basic demo executable (simple demo from main.zig) ===
-    // This is a minimal demo showing basic engine usage
-    const basic_exe = b.addExecutable(.{
-        .name = "EtherMud",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "EtherMud", .module = mod },
-            },
-        }),
-    });
-
-    // Link against system-installed SDL3
-    basic_exe.linkSystemLibrary("SDL3");
-    basic_exe.linkLibC();
-    basic_exe.linkLibCpp();
-
-    // Add bgfx and dependencies
+    // Define bgfx compiler flags once (used by all executables)
     const is_macos = target.result.os.tag == .macos;
     const bgfx_flags = [_][]const u8{
         "-Wno-deprecated-declarations",
@@ -81,56 +62,21 @@ pub fn build(b: *std.Build) void {
         "-Wno-error=implicit-function-declaration", // Allow malloc without malloc.h
     };
 
-    // Build bx (base library)
-    basic_exe.addCSourceFile(.{
-        .file = b.path("external/bx/src/amalgamated.cpp"),
-        .flags = &bgfx_flags,
-    });
-    basic_exe.addIncludePath(b.path("external/bx/include"));
-    basic_exe.addIncludePath(b.path("external/bx/3rdparty"));
+    // === Executables ===
 
-    // Build minimal bimg (image library)
-    basic_exe.addCSourceFiles(.{
-        .files = &[_][]const u8{
-            "external/bimg/src/image.cpp",
-            "external/bimg/src/image_gnf.cpp", // GNF image format support
-        },
-        .flags = &bgfx_flags,
-    });
-    basic_exe.addIncludePath(b.path("external/bimg/include"));
-    basic_exe.addIncludePath(b.path("external/bimg/3rdparty"));
-    basic_exe.addIncludePath(b.path("external/bimg/3rdparty/astc-encoder/include"));
-    basic_exe.addIncludePath(b.path("external/bimg/3rdparty/iqa/include"));
-
-    // Build bgfx (rendering library)
-    // Use .mm file for macOS to get Metal support
-    if (is_macos) {
-        basic_exe.addCSourceFile(.{
-            .file = b.path("external/bgfx/src/amalgamated.mm"),
-            .flags = &bgfx_flags,
-        });
-        basic_exe.linkFramework("Metal");
-        basic_exe.linkFramework("QuartzCore");
-        basic_exe.linkFramework("Cocoa");
-        basic_exe.linkFramework("IOKit"); // For IORegistry* functions
-    } else {
-        basic_exe.addCSourceFile(.{
-            .file = b.path("external/bgfx/src/amalgamated.cpp"),
-            .flags = &bgfx_flags,
-        });
-    }
-    basic_exe.addIncludePath(b.path("external/bgfx/include"));
-    basic_exe.addIncludePath(b.path("external/bgfx/3rdparty"));
-    basic_exe.addIncludePath(b.path("external/bgfx/3rdparty/khronos"));
-
-    // Add stb_truetype include path and custom allocator wrapper
-    basic_exe.addIncludePath(b.path("external/stb"));
-    basic_exe.addCSourceFile(.{
-        .file = b.path("src/stb_truetype_wrapper.c"),
-        .flags = &.{"-std=c99"},
-    });
-
+    // Basic demo executable (full demo from main.zig)
+    const basic_exe = createExecutable(b, target, optimize, mod, "EtherMud", "src/main.zig", is_macos, &bgfx_flags);
     b.installArtifact(basic_exe);
+
+    // Minimal example - simple window with blue screen
+    const minimal_exe = createExecutable(b, target, optimize, mod, "minimal", "examples/minimal.zig", is_macos, &bgfx_flags);
+    b.installArtifact(minimal_exe);
+
+    // Demo UI executable (full widget showcase)
+    const demo_ui_exe = createExecutable(b, target, optimize, mod, "demo_ui", "examples/demo_ui.zig", is_macos, &bgfx_flags);
+    b.installArtifact(demo_ui_exe);
+
+    // === Run Steps ===
 
     // Run step for basic demo
     const run_basic_step = b.step("run-basic", "Run the basic demo");
@@ -141,143 +87,11 @@ pub fn build(b: *std.Build) void {
     }
     run_basic_step.dependOn(&run_basic_cmd.step);
 
-    // === Examples ===
-
-    // Minimal example - simple window with blue screen
-    const minimal_exe = b.addExecutable(.{
-        .name = "minimal",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("examples/minimal.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "EtherMud", .module = mod },
-            },
-        }),
-    });
-
-    // Link the same libraries as main exe
-    minimal_exe.linkSystemLibrary("SDL3");
-    minimal_exe.linkLibC();
-    minimal_exe.linkLibCpp();
-
-    // Add bgfx and dependencies (same as main exe)
-    minimal_exe.addCSourceFile(.{
-        .file = b.path("external/bx/src/amalgamated.cpp"),
-        .flags = &bgfx_flags,
-    });
-    minimal_exe.addIncludePath(b.path("external/bx/include"));
-    minimal_exe.addIncludePath(b.path("external/bx/3rdparty"));
-
-    minimal_exe.addCSourceFiles(.{
-        .files = &[_][]const u8{
-            "external/bimg/src/image.cpp",
-            "external/bimg/src/image_gnf.cpp",
-        },
-        .flags = &bgfx_flags,
-    });
-    minimal_exe.addIncludePath(b.path("external/bimg/include"));
-    minimal_exe.addIncludePath(b.path("external/bimg/3rdparty"));
-    minimal_exe.addIncludePath(b.path("external/bimg/3rdparty/astc-encoder/include"));
-    minimal_exe.addIncludePath(b.path("external/bimg/3rdparty/iqa/include"));
-
-    if (is_macos) {
-        minimal_exe.addCSourceFile(.{
-            .file = b.path("external/bgfx/src/amalgamated.mm"),
-            .flags = &bgfx_flags,
-        });
-        minimal_exe.linkFramework("Metal");
-        minimal_exe.linkFramework("QuartzCore");
-        minimal_exe.linkFramework("Cocoa");
-        minimal_exe.linkFramework("IOKit");
-    } else {
-        minimal_exe.addCSourceFile(.{
-            .file = b.path("external/bgfx/src/amalgamated.cpp"),
-            .flags = &bgfx_flags,
-        });
-    }
-    minimal_exe.addIncludePath(b.path("external/bgfx/include"));
-    minimal_exe.addIncludePath(b.path("external/bgfx/3rdparty"));
-    minimal_exe.addIncludePath(b.path("external/bgfx/3rdparty/khronos"));
-
-    minimal_exe.addIncludePath(b.path("external/stb"));
-    minimal_exe.addCSourceFile(.{
-        .file = b.path("src/stb_truetype_wrapper.c"),
-        .flags = &.{"-std=c99"},
-    });
-
-    b.installArtifact(minimal_exe);
-
     // Run step for minimal example
     const run_minimal_step = b.step("run-minimal", "Run the minimal example");
     const run_minimal_cmd = b.addRunArtifact(minimal_exe);
     run_minimal_cmd.step.dependOn(b.getInstallStep());
     run_minimal_step.dependOn(&run_minimal_cmd.step);
-
-    // === demo_ui executable (full widget showcase) ===
-    const demo_ui_exe = b.addExecutable(.{
-        .name = "demo_ui",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("examples/demo_ui.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = "EtherMud", .module = mod },
-            },
-        }),
-    });
-
-    // Link the same libraries as main exe
-    demo_ui_exe.linkSystemLibrary("SDL3");
-    demo_ui_exe.linkLibC();
-    demo_ui_exe.linkLibCpp();
-
-    // Add bgfx and dependencies (same as main exe)
-    demo_ui_exe.addCSourceFile(.{
-        .file = b.path("external/bx/src/amalgamated.cpp"),
-        .flags = &bgfx_flags,
-    });
-    demo_ui_exe.addIncludePath(b.path("external/bx/include"));
-    demo_ui_exe.addIncludePath(b.path("external/bx/3rdparty"));
-
-    demo_ui_exe.addCSourceFiles(.{
-        .files = &[_][]const u8{
-            "external/bimg/src/image.cpp",
-            "external/bimg/src/image_gnf.cpp",
-        },
-        .flags = &bgfx_flags,
-    });
-    demo_ui_exe.addIncludePath(b.path("external/bimg/include"));
-    demo_ui_exe.addIncludePath(b.path("external/bimg/3rdparty"));
-    demo_ui_exe.addIncludePath(b.path("external/bimg/3rdparty/astc-encoder/include"));
-    demo_ui_exe.addIncludePath(b.path("external/bimg/3rdparty/iqa/include"));
-
-    if (is_macos) {
-        demo_ui_exe.addCSourceFile(.{
-            .file = b.path("external/bgfx/src/amalgamated.mm"),
-            .flags = &bgfx_flags,
-        });
-        demo_ui_exe.linkFramework("Metal");
-        demo_ui_exe.linkFramework("QuartzCore");
-        demo_ui_exe.linkFramework("Cocoa");
-        demo_ui_exe.linkFramework("IOKit");
-    } else {
-        demo_ui_exe.addCSourceFile(.{
-            .file = b.path("external/bgfx/src/amalgamated.cpp"),
-            .flags = &bgfx_flags,
-        });
-    }
-    demo_ui_exe.addIncludePath(b.path("external/bgfx/include"));
-    demo_ui_exe.addIncludePath(b.path("external/bgfx/3rdparty"));
-    demo_ui_exe.addIncludePath(b.path("external/bgfx/3rdparty/khronos"));
-
-    demo_ui_exe.addIncludePath(b.path("external/stb"));
-    demo_ui_exe.addCSourceFile(.{
-        .file = b.path("src/stb_truetype_wrapper.c"),
-        .flags = &.{"-std=c99"},
-    });
-
-    b.installArtifact(demo_ui_exe);
 
     // Run step for demo_ui (this is the default run command)
     const run_step = b.step("run", "Run the full UI widget showcase");
@@ -288,9 +102,11 @@ pub fn build(b: *std.Build) void {
     }
     run_step.dependOn(&run_cmd.step);
 
+    // === Tests ===
+
     // Creates an executable that will run `test` blocks from the provided module.
     // Here `mod` needs to define a target, which is why earlier we made sure to
-    // set the releative field.
+    // set the relative field.
     const mod_tests = b.addTest(.{
         .root_module = mod,
     });
@@ -317,4 +133,85 @@ pub fn build(b: *std.Build) void {
     //
     // Lastly, the Zig build system is relatively simple and self-contained,
     // and reading its source code will allow you to master it.
+}
+
+/// Helper function to create an executable with all common dependencies
+/// Eliminates ~230 lines of duplication across 3 executables
+fn createExecutable(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    ethermud_mod: *std.Build.Module,
+    name: []const u8,
+    root_source: []const u8,
+    is_macos: bool,
+    bgfx_flags: []const []const u8,
+) *std.Build.Step.Compile {
+    const exe = b.addExecutable(.{
+        .name = name,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path(root_source),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "EtherMud", .module = ethermud_mod },
+            },
+        }),
+    });
+
+    // Link against system-installed SDL3
+    exe.linkSystemLibrary("SDL3");
+    exe.linkLibC();
+    exe.linkLibCpp();
+
+    // Build bx (base library)
+    exe.addCSourceFile(.{
+        .file = b.path("external/bx/src/amalgamated.cpp"),
+        .flags = bgfx_flags,
+    });
+    exe.addIncludePath(b.path("external/bx/include"));
+    exe.addIncludePath(b.path("external/bx/3rdparty"));
+
+    // Build minimal bimg (image library)
+    exe.addCSourceFiles(.{
+        .files = &[_][]const u8{
+            "external/bimg/src/image.cpp",
+            "external/bimg/src/image_gnf.cpp", // GNF image format support
+        },
+        .flags = bgfx_flags,
+    });
+    exe.addIncludePath(b.path("external/bimg/include"));
+    exe.addIncludePath(b.path("external/bimg/3rdparty"));
+    exe.addIncludePath(b.path("external/bimg/3rdparty/astc-encoder/include"));
+    exe.addIncludePath(b.path("external/bimg/3rdparty/iqa/include"));
+
+    // Build bgfx (rendering library)
+    // Use .mm file for macOS to get Metal support
+    if (is_macos) {
+        exe.addCSourceFile(.{
+            .file = b.path("external/bgfx/src/amalgamated.mm"),
+            .flags = bgfx_flags,
+        });
+        exe.linkFramework("Metal");
+        exe.linkFramework("QuartzCore");
+        exe.linkFramework("Cocoa");
+        exe.linkFramework("IOKit"); // For IORegistry* functions
+    } else {
+        exe.addCSourceFile(.{
+            .file = b.path("external/bgfx/src/amalgamated.cpp"),
+            .flags = bgfx_flags,
+        });
+    }
+    exe.addIncludePath(b.path("external/bgfx/include"));
+    exe.addIncludePath(b.path("external/bgfx/3rdparty"));
+    exe.addIncludePath(b.path("external/bgfx/3rdparty/khronos"));
+
+    // Add stb_truetype include path and custom allocator wrapper
+    exe.addIncludePath(b.path("external/stb"));
+    exe.addCSourceFile(.{
+        .file = b.path("src/stb_truetype_wrapper.c"),
+        .flags = &.{"-std=c99"},
+    });
+
+    return exe;
 }

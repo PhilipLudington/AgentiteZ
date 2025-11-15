@@ -43,7 +43,7 @@ test "RenderScale: Landscape to portrait orientation" {
         .height = 1080,
         .dpi_scale = 1.0,
     };
-    const landscape_scale = ui.RenderScale.init(landscape_info);
+    _ = ui.RenderScale.init(landscape_info);
 
     // Rotate to portrait (swap width/height)
     const portrait_info = ui.WindowInfo{
@@ -154,7 +154,7 @@ test "Coordinate conversion after resize" {
 }
 
 test "DpiConfig.updateIfNeeded detects changes" {
-    var initial_info = ui.WindowInfo{
+    const initial_info = ui.WindowInfo{
         .width = 1920,
         .height = 1080,
         .dpi_scale = 1.0,

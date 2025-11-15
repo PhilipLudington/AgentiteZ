@@ -49,10 +49,9 @@ pub fn progressBar(ctx: *Context, label_text: []const u8, rect: Rect, progress: 
         const text = std.fmt.bufPrint(&text_buf, "{d}%", .{percentage}) catch "??%";
 
         const text_bounds = ctx.renderer.measureText(text, text_size);
-        const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
         const text_pos = Vec2{
             .x = rect.x + (rect.width - text_bounds.x) / 2,
-            .y = rect.y + rect.height / 2 - baseline_offset,
+            .y = rect.y + (rect.height - text_bounds.y) / 2,
         };
         ctx.renderer.drawText(text, text_pos, text_size, ctx.theme.text_primary);
     }

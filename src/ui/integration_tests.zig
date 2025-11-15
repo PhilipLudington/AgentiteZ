@@ -127,7 +127,6 @@ test "integration - WidgetId consistency across frames" {
 
 test "integration - Mouse hit testing workflow" {
     const button_rect = Rect.init(100, 100, 200, 50);
-    const input = InputState.init();
 
     // Test various mouse positions
     const inside_pos = Vec2.init(150, 125);

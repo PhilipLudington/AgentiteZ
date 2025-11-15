@@ -140,25 +140,23 @@ pub fn textInput(ctx: *Context, label_text: []const u8, rect: Rect, buffer: []u8
 
     // Draw text content
     const text_size = ctx.theme.font_size_normal;
-    const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
+    const text_bounds = ctx.renderer.measureText(if (buffer_len.* > 0) buffer[0..buffer_len.*] else "M", text_size);
     const text_pos = Vec2{
         .x = rect.x + 5,
-        .y = rect.y + rect.height / 2 - baseline_offset,
+        .y = rect.y + (rect.height - text_bounds.y) / 2,
     };
     const text_to_display = buffer[0..buffer_len.*];
     ctx.renderer.drawText(text_to_display, text_pos, text_size, ctx.theme.input_text);
 
     // Draw cursor when focused
     if (is_focused) {
-        const text_bounds = ctx.renderer.measureText(text_to_display, text_size);
-        const cursor_x = text_pos.x + text_bounds.x + 2;
-        // Cursor should span from top of text to baseline (not below baseline)
-        // Text baseline is at text_pos.y, and text extends upward by approximately text_size
+        const text_width = ctx.renderer.measureText(text_to_display, text_size).x;
+        const cursor_x = text_pos.x + text_width + 2;
         const cursor_rect = Rect{
             .x = cursor_x,
-            .y = text_pos.y - text_size * 0.75, // Start above baseline
+            .y = text_pos.y,
             .width = 2,
-            .height = text_size * 0.9, // Height to cover text area
+            .height = text_bounds.y,
         };
         ctx.renderer.drawRect(cursor_rect, ctx.theme.input_cursor);
     }
