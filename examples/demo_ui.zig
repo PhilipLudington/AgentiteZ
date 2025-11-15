@@ -115,7 +115,8 @@ pub fn main() !void {
         .dpi_scale = dpi_scale,
     };
 
-    var renderer_2d = try ui.Renderer2D.init(allocator, @intCast(window_width), @intCast(window_height));
+    const font_path = "external/bgfx/examples/runtime/font/roboto-regular.ttf";
+    var renderer_2d = try ui.Renderer2D.init(allocator, @intCast(window_width), @intCast(window_height), font_path);
     defer renderer_2d.deinit();
 
     // Set DPI scale for proper HiDPI rendering (especially for scissor regions)
@@ -218,6 +219,29 @@ pub fn main() !void {
     // Wire up SDF font atlas to Renderer2D
     renderer_2d.setExternalFontAtlas(&font_atlas);
     std.debug.print("SDF font atlas enabled with optimized parameters!\n\n", .{});
+
+    // === Load Orbitron Font at Multiple Sizes ===
+    std.debug.print("=== Loading Orbitron Font Showcase ===\n", .{});
+    const orbitron_path = "assets/fonts/Orbitron-VariableFont_wght.ttf";
+
+    // Use SDF mode for Orbitron (better for display fonts and scalability)
+    var orbitron_16 = try renderer.FontAtlas.initSDF(allocator, orbitron_path, 16.0 * dpi_scale, false);
+    defer orbitron_16.deinit();
+    std.debug.print("Orbitron 16px loaded ({d}x{d})\n", .{ orbitron_16.atlas_width, orbitron_16.atlas_height });
+
+    var orbitron_24 = try renderer.FontAtlas.initSDF(allocator, orbitron_path, 24.0 * dpi_scale, false);
+    defer orbitron_24.deinit();
+    std.debug.print("Orbitron 24px loaded ({d}x{d})\n", .{ orbitron_24.atlas_width, orbitron_24.atlas_height });
+
+    var orbitron_32 = try renderer.FontAtlas.initSDF(allocator, orbitron_path, 32.0 * dpi_scale, false);
+    defer orbitron_32.deinit();
+    std.debug.print("Orbitron 32px loaded ({d}x{d})\n", .{ orbitron_32.atlas_width, orbitron_32.atlas_height });
+
+    var orbitron_48 = try renderer.FontAtlas.initSDF(allocator, orbitron_path, 48.0 * dpi_scale, false);
+    defer orbitron_48.deinit();
+    std.debug.print("Orbitron 48px loaded ({d}x{d})\n", .{ orbitron_48.atlas_width, orbitron_48.atlas_height });
+
+    std.debug.print("=== Orbitron Font Showcase Ready ===\n\n", .{});
 
     // Initialize input state
     var input_state = platform.InputState.init(allocator);
@@ -749,6 +773,54 @@ pub fn main() !void {
                 .{ long_text }
             ) catch "Not Truncated";
         ui.label(&ctx, truncate_line, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 11, ui.Color.init(255, 200, 100, 255));
+
+        ui.endPanel(&ctx);
+
+        // === NEW: Orbitron Font Showcase ===
+        const orbitron_panel_rect = ui.Rect.init(1250, 790, 400, 300);
+        try ui.beginPanel(&ctx, "Orbitron Font Showcase (NEW!)", orbitron_panel_rect, ui.Color.panel_bg);
+
+        ctx.cursor.y += 5;  // Add spacing after panel header
+
+        ui.label(&ctx, "Variable Font at Multiple Sizes:", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 14, ui.Color.white);
+        ctx.cursor.y += 25;
+
+        // Showcase text
+        const showcase_text = "STELLAR THRONE";
+
+        // 16px - Small size
+        renderer_2d.setExternalFontAtlas(&orbitron_16);
+        ui.label(&ctx, showcase_text, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 16, ui.Color.init(150, 200, 255, 255));
+        ui.label(&ctx, "16px - UI Text", .{ .x = ctx.cursor.x + 220, .y = ctx.cursor.y }, 10, ui.Color.gray);
+        ctx.cursor.y += 30;
+
+        // 24px - Medium size
+        renderer_2d.setExternalFontAtlas(&orbitron_24);
+        ui.label(&ctx, showcase_text, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 24, ui.Color.init(100, 255, 150, 255));
+        ui.label(&ctx, "24px - Headers", .{ .x = ctx.cursor.x + 220, .y = ctx.cursor.y + 5 }, 10, ui.Color.gray);
+        ctx.cursor.y += 40;
+
+        // 32px - Large size
+        renderer_2d.setExternalFontAtlas(&orbitron_32);
+        ui.label(&ctx, showcase_text, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 32, ui.Color.init(255, 200, 100, 255));
+        ui.label(&ctx, "32px - Titles", .{ .x = ctx.cursor.x + 220, .y = ctx.cursor.y + 8 }, 10, ui.Color.gray);
+        ctx.cursor.y += 50;
+
+        // 48px - Extra large size
+        renderer_2d.setExternalFontAtlas(&orbitron_48);
+        ui.label(&ctx, showcase_text, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 48, ui.Color.init(255, 100, 200, 255));
+        ui.label(&ctx, "48px - Logos", .{ .x = ctx.cursor.x + 220, .y = ctx.cursor.y + 15 }, 10, ui.Color.gray);
+        ctx.cursor.y += 60;
+
+        // Info text
+        ui.label(&ctx, "Orbitron is a geometric sans-serif",
+            .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 10, ui.Color.gray);
+        ctx.cursor.y += 15;
+        ui.label(&ctx, "variable font perfect for sci-fi UIs!",
+            .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 10, ui.Color.gray);
+
+        // Restore default font
+        renderer_2d.setExternalFontAtlas(&font_atlas);
 
         ui.endPanel(&ctx);
 
