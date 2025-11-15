@@ -89,6 +89,7 @@ pub const FontAtlas = struct {
     atlas_height: u32,
     font_size: f32,
     line_height: f32,
+    ascent: f32, // Distance from baseline to top of line
     allocator: std.mem.Allocator,
     use_packed: bool, // True if using optimized packing
     use_sdf: bool, // True if using SDF (Signed Distance Field)
@@ -297,6 +298,7 @@ pub const FontAtlas = struct {
             .atlas_height = atlas_height,
             .font_size = font_size,
             .line_height = line_height,
+            .ascent = @as(f32, @floatFromInt(ascent)) * scale,
             .allocator = allocator,
             .use_packed = true,
             .use_sdf = false,
@@ -470,6 +472,7 @@ pub const FontAtlas = struct {
             .atlas_height = atlas_height,
             .font_size = font_size,
             .line_height = line_height,
+            .ascent = @as(f32, @floatFromInt(ascent)) * scale,
             .allocator = allocator,
             .use_packed = false,
             .use_sdf = false,
@@ -694,6 +697,7 @@ pub const FontAtlas = struct {
             .atlas_height = atlas_height,
             .font_size = font_size,
             .line_height = line_height,
+            .ascent = @as(f32, @floatFromInt(ascent)) * scale,
             .allocator = allocator,
             .use_packed = false,
             .use_sdf = true,

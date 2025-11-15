@@ -91,9 +91,10 @@ pub fn buttonWithId(ctx: *Context, display_text: []const u8, id: u64, rect: Rect
     // Draw button text (centered) with theme color
     const text_size = ctx.theme.font_size_normal;
     const text_bounds = ctx.renderer.measureText(display_text, text_size);
+    const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
     const text_pos = Vec2{
         .x = rect.x + (rect.width - text_bounds.x) / 2,
-        .y = rect.y + (rect.height - text_bounds.y) / 2,
+        .y = rect.y + rect.height / 2 - baseline_offset,
     };
     ctx.renderer.drawText(display_text, text_pos, text_size, ctx.theme.button_text);
 
@@ -181,9 +182,9 @@ pub fn checkbox(ctx: *Context, label_text: []const u8, rect: Rect, checked: *boo
     // Draw label text
     if (label_text.len > 0) {
         const text_size = ctx.theme.font_size_normal;
-        const text_bounds = ctx.renderer.measureText(label_text, text_size);
+        const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
         const text_x = box_rect.x + box_size + 8; // 8px gap
-        const text_y = rect.y + (rect.height - text_bounds.y) / 2;
+        const text_y = rect.y + rect.height / 2 - baseline_offset;
 
         ctx.renderer.drawText(label_text, .{ .x = text_x, .y = text_y }, text_size, ctx.theme.text_primary);
     }

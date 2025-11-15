@@ -141,20 +141,24 @@ pub fn textInput(ctx: *Context, label_text: []const u8, rect: Rect, buffer: []u8
     // Draw text content
     const text_size = ctx.theme.font_size_normal;
     const text_bounds = ctx.renderer.measureText(if (buffer_len.* > 0) buffer[0..buffer_len.*] else "M", text_size);
+    const baseline_offset = ctx.renderer.getBaselineOffset(text_size);
     const text_pos = Vec2{
         .x = rect.x + 5,
-        .y = rect.y + (rect.height - text_bounds.y) / 2,
+        .y = rect.y + rect.height / 2 - baseline_offset,
     };
     const text_to_display = buffer[0..buffer_len.*];
-    ctx.renderer.drawText(text_to_display, text_pos, text_size, ctx.theme.input_text);
+    // Use black text color for better contrast on white/light background
+    ctx.renderer.drawText(text_to_display, text_pos, text_size, Color.init(0, 0, 0, 255));
 
     // Draw cursor when focused
     if (is_focused) {
         const text_width = ctx.renderer.measureText(text_to_display, text_size).x;
         const cursor_x = text_pos.x + text_width + 2;
+        // Position cursor from top of text area, not from baseline
+        const cursor_y = rect.y + rect.height / 2 - text_bounds.y / 2;
         const cursor_rect = Rect{
             .x = cursor_x,
-            .y = text_pos.y,
+            .y = cursor_y,
             .width = 2,
             .height = text_bounds.y,
         };

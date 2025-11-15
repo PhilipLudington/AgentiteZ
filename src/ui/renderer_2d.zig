@@ -265,6 +265,9 @@ pub const Renderer2D = struct {
     // Font atlas for text rendering (SDF - Signed Distance Field)
     font_atlas: FontAtlasModule.FontAtlas,
 
+    // External font atlas (optional override for custom font rendering)
+    external_font_atlas: ?*const FontAtlasModule.FontAtlas,
+
     // View ID for UI rendering
     view_id: bgfx.ViewId,
     default_view_id: bgfx.ViewId,  // Store the default view
@@ -330,13 +333,13 @@ pub const Renderer2D = struct {
         );
         texture_vertex_layout.end();
 
-        // Load SDF font atlas (Signed Distance Field for perfect scaling)
+        // Load bitmap font atlas (HiDPI-ready)
         // Font path is relative to the executable's working directory
-        const font_path = "assets/fonts/Orbitron-VariableFont_wght.ttf";
+        const font_path = "external/bgfx/examples/runtime/font/roboto-regular.ttf";
         const font_size: f32 = 24.0;
         const flip_uv = false; // BGFX uses standard UV coordinates
-        const font_atlas = FontAtlasModule.FontAtlas.initSDF(allocator, font_path, font_size, flip_uv) catch |err| {
-            log.err("Renderer2D", "Failed to load SDF font from '{s}': {}", .{ font_path, err });
+        const font_atlas = FontAtlasModule.FontAtlas.init(allocator, font_path, font_size, flip_uv) catch |err| {
+            log.err("Renderer2D", "Failed to load font from '{s}': {}", .{ font_path, err });
             log.err("Renderer2D", "Make sure the font file exists and working directory is set correctly", .{});
             return err;
         };
@@ -351,6 +354,7 @@ pub const Renderer2D = struct {
             .color_batch = DrawBatch.init(allocator),
             .texture_batch = TextureBatch.init(allocator),
             .font_atlas = font_atlas,
+            .external_font_atlas = null,
             .view_id = 0,
             .default_view_id = 0,
             .overlay_view_id = 1,
@@ -553,8 +557,9 @@ pub const Renderer2D = struct {
         bgfx.setTransientVertexBuffer(0, &tvb, 0, num_vertices);
         bgfx.setTransientIndexBuffer(&tib, 0, num_indices);
 
-        // Set texture from SDF font atlas
-        bgfx.setTexture(0, self.shader_programs.texture_sampler, self.font_atlas.texture, 0xffffffff);
+        // Set texture from font atlas (use external if provided, otherwise use internal)
+        const atlas = self.external_font_atlas orelse &self.font_atlas;
+        bgfx.setTexture(0, self.shader_programs.texture_sampler, atlas.texture, 0xffffffff);
 
         // Apply scissor if enabled - call setScissor fresh each time
         // IMPORTANT: Scale by DPI for HiDPI displays (BGFX expects physical pixels)
@@ -579,8 +584,9 @@ pub const Renderer2D = struct {
             0,
         );
 
-        // Submit draw call with SDF shader for perfect scaling
-        const program = if (self.font_atlas.use_sdf)
+        // Submit draw call with appropriate shader (SDF or bitmap)
+        const atlas_to_use = self.external_font_atlas orelse &self.font_atlas;
+        const program = if (atlas_to_use.use_sdf)
             self.shader_programs.sdf_text_program
         else
             self.shader_programs.texture_program;
@@ -611,9 +617,10 @@ pub const Renderer2D = struct {
         self.drawRect(.{ .x = rect.x + rect.width - thickness, .y = rect.y + thickness, .width = thickness, .height = rect.height - (thickness * 2) }, color);
     }
 
-    /// Draw text using SDF font atlas (Signed Distance Field for perfect scaling)
+    /// Draw text using font atlas (uses external atlas if set, otherwise internal)
     pub fn drawText(self: *Renderer2D, text: []const u8, pos: Vec2, size: f32, color: Color) void {
-        self.drawTextWithSDF(&self.font_atlas, text, pos, size, color);
+        const atlas = self.external_font_atlas orelse &self.font_atlas;
+        self.drawTextWithSDF(atlas, text, pos, size, color);
     }
 
     /// Draw text using SDF font atlas (Signed Distance Field for perfect scaling)
@@ -657,20 +664,24 @@ pub const Renderer2D = struct {
     }
 
 
-    /// Measure text size
+    /// Measure text size (uses external atlas if set, otherwise internal)
     pub fn measureText(self: *Renderer2D, text: []const u8, font_size: f32) Vec2 {
-        const width = self.font_atlas.measureText(text);
-        const scale = font_size / self.font_atlas.font_size;
-        return Vec2.init(width * scale, self.font_atlas.line_height * scale);
+        const atlas = self.external_font_atlas orelse &self.font_atlas;
+        const width = atlas.measureText(text);
+        const scale = font_size / atlas.font_size;
+        return Vec2.init(width * scale, atlas.line_height * scale);
     }
 
     /// Get baseline offset for vertically centering text
-    /// When you want to center text in a box, use: baseline_y = box_center_y + getBaselineOffset(font_size)
+    /// When you want to center text in a box, use: baseline_y = box_center_y - getBaselineOffset(font_size)
+    /// This positions the baseline such that the visual center of the text is at box_center_y
     pub fn getBaselineOffset(self: *Renderer2D, font_size: f32) f32 {
-        const scale = font_size / self.font_atlas.font_size;
-        // For vertical centering, offset by approximately half the line height
-        // This works well with SDF fonts where line_height is pre-calculated
-        return (self.font_atlas.line_height * 0.5) * scale;
+        const atlas = self.external_font_atlas orelse &self.font_atlas;
+        const scale = font_size / atlas.font_size;
+        // To center text: baseline should be at center - (line_height/2) + ascent
+        // Since widgets SUBTRACT this value, we return it as negative
+        // baseline_offset = -(ascent - line_height/2) = line_height/2 - ascent
+        return (atlas.line_height * 0.5 - atlas.ascent) * scale;
     }
 
     /// Begin scissor

@@ -14,12 +14,9 @@ pub const storage = @import("storage.zig");
 pub const renderer = @import("renderer.zig");
 
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
-// when building tests. These are needed by C code even if not directly referenced from Zig.
-// Only needed in test mode to avoid duplicate symbols in regular builds.
+// These are needed by C code even if not directly referenced from Zig.
 comptime {
-    if (builtin.is_test) {
-        _ = stb_truetype;
-    }
+    _ = stb_truetype;
 }
 
 pub fn bufferedPrint() !void {
