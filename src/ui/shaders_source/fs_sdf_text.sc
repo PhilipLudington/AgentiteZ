@@ -22,15 +22,17 @@ void main()
 	// padding = 6 pixels
 	// pixel_dist_scale = 30.0 (maps ±6px range to 0-255 optimally)
 
-	// CRITICAL: Use fwidth() for screen-space antialiasing (per Grok recommendation)
-	// This matches bitmap atlas crispness while maintaining SDF scaling benefits
-	// fwidth() = abs(dFdx(sig_dist)) + abs(dFdy(sig_dist))
-	// Gives us the rate of change of the distance field per screen pixel
+	// SDF rendering with screen-space antialiasing
 	float edge = 0.706;  // Corresponds to onedge_value 180
-	float width = fwidth(sig_dist);  // Screen-space AA width
 
-	// Calculate alpha with screen-space antialiasing
-	// smoothstep creates smooth transition over the width calculated by fwidth
+	// Use fwidth() for automatic screen-space AA width
+	// Multiply by 0.7 to tighten the edge slightly for crisper text
+	float width = fwidth(sig_dist) * 0.7;
+
+	// Clamp to reasonable range to handle extreme minification/magnification
+	width = clamp(width, 0.001, 0.2);
+
+	// Calculate alpha with antialiasing
 	float alpha = smoothstep(edge - width, edge + width, sig_dist);
 
 	// Apply vertex color and calculated alpha

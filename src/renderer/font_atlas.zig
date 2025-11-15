@@ -505,9 +505,9 @@ pub const FontAtlas = struct {
         log.info("Renderer", "Scale={d:.4}, Ascent={d}, Descent={d}, LineHeight={d:.2}", .{ scale, ascent, descent, line_height });
 
         // SDF parameters (optimized for quality based on Grok/community recommendations)
-        // Key: sdf_size (render size) should be 32-64 for optimal quality
-        // Higher = better for large text, but trade-off for small text
-        const sdf_size: f32 = 48.0; // Base SDF generation size (32-64 range recommended)
+        // Key: sdf_size (render size) should be 64px or higher for optimal quality
+        // Higher = better antialiasing at small sizes
+        const sdf_size: f32 = 64.0; // Base SDF generation size (≥64px per Grok)
         const sdf_scale = stb.scaleForPixelHeight(&font_info, sdf_size);
 
         // Optimal padding: 5-8 pixels for ±5px distance range
@@ -675,15 +675,14 @@ pub const FontAtlas = struct {
         log.info("Renderer", "SDF atlas size {d}x{d}", .{ atlas_width, atlas_height });
 
         // Create bgfx texture (R8 format for single-channel SDF)
-        // CRITICAL: Use POINT sampling for SDF atlas (per Grok recommendation)
-        // The shader will handle smooth filtering via fwidth() antialiasing
-        // NO linear/mips on SDF atlas texture itself
-        const texture_flags = bgfx.SamplerFlags_UClamp | bgfx.SamplerFlags_VClamp | bgfx.SamplerFlags_Point;
+        // Use LINEAR filtering WITHOUT mipmaps
+        // Mipmaps don't work well with SDF because averaging distance values breaks the field
+        const texture_flags = bgfx.SamplerFlags_UClamp | bgfx.SamplerFlags_VClamp;
         const mem = bgfx.copy(atlas_bitmap.ptr, @intCast(atlas_bitmap.len));
         const texture = bgfx.createTexture2D(
             @intCast(atlas_width),
             @intCast(atlas_height),
-            false, // no mipmaps
+            false, // NO mipmaps - they break SDF by averaging distance values
             1, // layers
             bgfx.TextureFormat.R8, // Single channel
             texture_flags,
