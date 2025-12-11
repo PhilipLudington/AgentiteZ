@@ -1,4 +1,4 @@
-// UI module for EtherMud
+// UI module for AgentiteZ
 // Immediate-mode UI system adapted from StellarThroneZig
 
 pub const types = @import("ui/types.zig");

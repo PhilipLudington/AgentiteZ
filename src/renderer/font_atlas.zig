@@ -1,6 +1,6 @@
 // font_atlas.zig
 // Font atlas system for efficient text rendering with pre-baked glyphs
-// Adapted from StellarThroneZig for EtherMud
+// Adapted from StellarThroneZig for AgentiteZ
 // Now with optimized packing using stb_truetype's pack API
 
 const std = @import("std");

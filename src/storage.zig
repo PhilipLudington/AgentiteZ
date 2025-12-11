@@ -175,7 +175,7 @@ pub fn saveGame(state: *const GameState, filepath: []const u8) !void {
     const writer = buffer.writer();
 
     // Write header
-    try writer.writeAll("# EtherMud Save Game\n");
+    try writer.writeAll("# AgentiteZ Save Game\n");
     try writer.writeAll("# Auto-generated - manual edits may be lost\n\n");
 
     // Write game metadata

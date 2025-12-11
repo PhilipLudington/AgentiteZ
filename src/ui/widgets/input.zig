@@ -153,7 +153,7 @@ pub fn textInput(ctx: *Context, label_text: []const u8, rect: Rect, buffer: []u8
     // Draw cursor when focused
     if (is_focused) {
         const text_width = ctx.renderer.measureText(text_to_display, text_size).x;
-        const cursor_x = text_pos.x + text_width + 2;
+        const cursor_x = text_pos.x + text_width;
         // Position cursor from top of text area, not from baseline
         const cursor_y = rect.y + rect.height / 2 - text_bounds.y / 2;
         const cursor_rect = Rect{

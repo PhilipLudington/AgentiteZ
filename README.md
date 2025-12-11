@@ -1,4 +1,4 @@
-# EtherMud
+# AgentiteZ
 
 A modern game engine framework built with Zig 0.15.1, providing production-ready foundation systems for game development.
 
@@ -24,7 +24,7 @@ zig build run
 Or directly:
 
 ```bash
-./zig-out/bin/EtherMud
+./zig-out/bin/AgentiteZ
 ```
 
 ## Architecture

@@ -1,5 +1,5 @@
 // loader.zig
-// TOML configuration loader for EtherMud
+// TOML configuration loader for AgentiteZ
 // Provides data structures and loaders for MUD game content
 
 const std = @import("std");

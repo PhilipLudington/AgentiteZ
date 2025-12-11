@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-EtherMud is a modern game engine framework built with Zig 0.15.1, providing production-ready foundation systems for game development. It currently powers **Stellar Throne** (4X strategy game) and **Machinae** (factory-building game).
+AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing production-ready foundation systems for game development. It currently powers **Stellar Throne** (4X strategy game) and **Machinae** (factory-building game).
 
 **Production Status:** ✅ **8.5/10 - Production Quality** (see IMPROVEMENTS.md for detailed review)
 
@@ -36,7 +36,7 @@ zig build run-minimal
 zig build test
 
 # Run executable directly (after building)
-./zig-out/bin/EtherMud
+./zig-out/bin/AgentiteZ
 ```
 
 ## Examples
@@ -82,7 +82,7 @@ git submodule update --init --recursive
 ### Module Structure
 
 The project has two main modules:
-1. **EtherMud module** (`src/root.zig`) - Library module exposing:
+1. **AgentiteZ module** (`src/root.zig`) - Library module exposing:
    - `sdl` - SDL3 wrapper utilities
    - `bgfx` - bgfx rendering bindings
    - `stb_truetype` - TrueType font rendering
@@ -92,7 +92,7 @@ The project has two main modules:
    - `data` - TOML parsing utilities (no external dependencies)
    - `config` - Configuration loaders for game content (rooms, items, NPCs)
 
-2. **Executable** (`src/main.zig`) - Main application entry point that imports the EtherMud module
+2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
 ### Key Source Files
 
@@ -176,7 +176,7 @@ Key features available:
 
 Usage pattern:
 ```zig
-const stb = @import("EtherMud").stb_truetype;
+const stb = @import("AgentiteZ").stb_truetype;
 
 var font_info: stb.FontInfo = undefined;
 _ = stb.initFont(&font_info, font_data.ptr, 0);
@@ -204,7 +204,7 @@ The engine features a professional ECS architecture ported from StellarThroneZig
 
 **Usage Pattern:**
 ```zig
-const ecs = @import("EtherMud").ecs;
+const ecs = @import("AgentiteZ").ecs;
 
 // Create world
 var world = ecs.World.init(allocator);
@@ -255,7 +255,7 @@ Automatic widget positioning with the Layout system (`src/ui/layout.zig`):
 
 **Usage Pattern:**
 ```zig
-const ui = @import("EtherMud").ui;
+const ui = @import("AgentiteZ").ui;
 
 // Create vertical layout with center alignment
 const panel_rect = ui.Rect.init(100, 100, 400, 600);
@@ -289,7 +289,7 @@ High-level system for UI coordinate conversion with DPI awareness:
 
 **Usage Pattern:**
 ```zig
-const ui = @import("EtherMud").ui;
+const ui = @import("AgentiteZ").ui;
 
 // Create from window info
 const window_info = ui.WindowInfo{
@@ -316,7 +316,7 @@ Low-level letterbox viewport calculation for bgfx rendering:
 
 **Usage Pattern:**
 ```zig
-const renderer = @import("EtherMud").renderer;
+const renderer = @import("AgentiteZ").renderer;
 
 // Calculate letterbox viewport
 const viewport = renderer.calculateLetterboxViewport(
@@ -358,7 +358,7 @@ Clean event-driven to immediate-mode input API (`src/platform/input_state.zig`):
 
 **Usage Pattern:**
 ```zig
-const platform = @import("EtherMud").platform;
+const platform = @import("AgentiteZ").platform;
 
 // Initialize once
 var input_state = platform.InputState.init(allocator);
@@ -413,7 +413,7 @@ TOML-based data loading without external dependencies (`src/data/toml.zig`, `src
 
 **Usage Pattern:**
 ```zig
-const config = @import("EtherMud").config;
+const config = @import("AgentiteZ").config;
 
 // Load game data from TOML files
 var rooms = try config.loadRooms(allocator);
@@ -509,7 +509,7 @@ health = 80
 - 10 NPCs (friendly merchants, hostile enemies, quest givers)
 
 **Low-Level TOML Utilities:**
-Available in `@import("EtherMud").data.toml`:
+Available in `@import("AgentiteZ").data.toml`:
 - `parseU32()`, `parseInt32()`, `parseF32()`, `parseU8()`, `parseBool()` - Type parsing
 - `trimQuotes()` - String cleaning
 - `parseU8Array()`, `parseStringArray()` - Array parsing
@@ -531,7 +531,7 @@ Game state persistence with TOML serialization (`src/save_load.zig`):
 
 **Usage Pattern:**
 ```zig
-const save_load = @import("EtherMud").save_load;
+const save_load = @import("AgentiteZ").save_load;
 
 // Create game state
 var state = save_load.GameState.init(allocator);
@@ -606,7 +606,7 @@ std.debug.print("Current room: {s}\n", .{loaded_state.current_room_id});
 
 **Save File Format:**
 ```toml
-# EtherMud Save Game
+# AgentiteZ Save Game
 # Auto-generated - manual edits may be lost
 
 [game]
@@ -684,7 +684,7 @@ Optimized font rendering with pre-baked glyph atlas and full HiDPI support:
 
 **Usage Pattern (with HiDPI):**
 ```zig
-const renderer = @import("EtherMud").renderer;
+const renderer = @import("AgentiteZ").renderer;
 
 // Get DPI scale from SDL3 (comparing logical vs physical pixels)
 var pixel_width: c_int = undefined;

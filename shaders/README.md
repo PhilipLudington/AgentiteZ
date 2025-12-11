@@ -1,4 +1,4 @@
-# EtherMud Shaders
+# AgentiteZ Shaders
 
 This directory contains shader source files for the 2D UI renderer.
 
