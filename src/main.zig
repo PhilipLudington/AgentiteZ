@@ -1,11 +1,11 @@
 const std = @import("std");
-const EtherMud = @import("EtherMud");
-const sdl = EtherMud.sdl;
-const bgfx = EtherMud.bgfx;
-const stb = EtherMud.stb_truetype;
-const ui = EtherMud.ui;
-const platform = EtherMud.platform;
-const renderer = EtherMud.renderer;
+const AgentiteZ = @import("AgentiteZ");
+const sdl = AgentiteZ.sdl;
+const bgfx = AgentiteZ.bgfx;
+const stb = AgentiteZ.stb_truetype;
+const ui = AgentiteZ.ui;
+const platform = AgentiteZ.platform;
+const renderer = AgentiteZ.renderer;
 const c = sdl.c;
 
 // Simple demo state
@@ -16,7 +16,7 @@ const DemoState = struct {
 };
 
 pub fn main() !void {
-    std.debug.print("EtherMud Engine - Basic Demo\n", .{});
+    std.debug.print("AgentiteZ Engine - Basic Demo\n", .{});
     std.debug.print("See examples/demo_ui.zig for full widget showcase!\n\n", .{});
 
     // Initialize SDL3
@@ -28,7 +28,7 @@ pub fn main() !void {
 
     // Create window with HiDPI support
     const window = c.SDL_CreateWindow(
-        "EtherMud - Basic Demo",
+        "AgentiteZ - Basic Demo",
         1920,
         1080,
         c.SDL_WINDOW_RESIZABLE | c.SDL_WINDOW_HIGH_PIXEL_DENSITY,
@@ -75,7 +75,8 @@ pub fn main() !void {
         .dpi_scale = dpi_scale,
     };
 
-    var renderer_2d = try ui.Renderer2D.init(allocator, @intCast(window_width), @intCast(window_height));
+    const font_path = "external/bgfx/examples/runtime/font/roboto-regular.ttf";
+    var renderer_2d = try ui.Renderer2D.init(allocator, @intCast(window_width), @intCast(window_height), font_path);
     defer renderer_2d.deinit();
     renderer_2d.setDpiScale(dpi_scale);
 
@@ -160,7 +161,7 @@ pub fn main() !void {
         ctx.beginFrame(input, current_window_info);
 
         // Simple UI demo
-        ui.label(&ctx, "EtherMud Engine - Basic Demo", .{ .x = 20, .y = 20 }, 24, ui.Color.white);
+        ui.label(&ctx, "AgentiteZ Engine - Basic Demo", .{ .x = 20, .y = 20 }, 24, ui.Color.white);
         ui.label(&ctx, "Run 'zig build run' for the full widget showcase!", .{ .x = 20, .y = 50 }, 14, ui.Color.gray);
 
         ctx.cursor = .{ .x = 20, .y = 100 };
@@ -174,27 +175,26 @@ pub fn main() !void {
         ctx.cursor.y += 30;
 
         // Button
+        const button_y = ctx.cursor.y;
         if (ui.buttonAuto(&ctx, "Click Me!", 200, 40)) {
             demo_state.button_clicks += 1;
         }
-
         var clicks_buf: [64]u8 = undefined;
         const clicks_text = std.fmt.bufPrint(&clicks_buf, "Clicks: {d}", .{demo_state.button_clicks}) catch "Clicks";
-        ui.label(&ctx, clicks_text, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 14, ui.Color.imperial_gold);
-        ctx.cursor.y += 30;
+        ui.label(&ctx, clicks_text, .{ .x = ctx.cursor.x + 210, .y = button_y + 12 }, 12, ui.Color.imperial_gold);
 
         // Checkbox
         _ = ui.checkboxAuto(&ctx, "Enable Feature", &demo_state.checkbox_enabled);
         const status_text = if (demo_state.checkbox_enabled) "Status: ENABLED" else "Status: disabled";
         const status_color = if (demo_state.checkbox_enabled) ui.Color.init(100, 255, 100, 255) else ui.Color.gray;
-        ui.label(&ctx, status_text, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 14, status_color);
-        ctx.cursor.y += 30;
+        ui.label(&ctx, status_text, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, status_color);
+        ctx.cursor.y += 25; // Space for status text + gap before next widget
 
         // Slider
         demo_state.slider_value = ui.sliderAuto(&ctx, "Volume", 300, demo_state.slider_value, 0, 100);
         var volume_buf: [64]u8 = undefined;
         const volume_text = std.fmt.bufPrint(&volume_buf, "Value: {d:.0}", .{demo_state.slider_value}) catch "Value";
-        ui.label(&ctx, volume_text, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 14, ui.Color.white);
+        ui.label(&ctx, volume_text, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.white);
 
         ui.endPanel(&ctx);
 
@@ -204,19 +204,19 @@ pub fn main() !void {
 
         ctx.cursor.y += 5;
         ui.label(&ctx, "Core Systems:", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 16, ui.Color.white);
-        ctx.cursor.y += 25;
+        ctx.cursor.y += 30;
 
-        ui.label(&ctx, "✓ SDL3 + bgfx rendering", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.gray);
-        ctx.cursor.y += 20;
-        ui.label(&ctx, "✓ UI system with 10+ widgets", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.gray);
-        ctx.cursor.y += 20;
-        ui.label(&ctx, "✓ ECS architecture", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.gray);
-        ctx.cursor.y += 20;
-        ui.label(&ctx, "✓ Font atlas rendering", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.gray);
-        ctx.cursor.y += 20;
-        ui.label(&ctx, "✓ Virtual 1920x1080 resolution", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.gray);
-        ctx.cursor.y += 20;
-        ui.label(&ctx, "✓ HiDPI/Retina support", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.gray);
+        ui.label(&ctx, "SDL3 + bgfx rendering", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 14, ui.Color.gray);
+        ctx.cursor.y += 22;
+        ui.label(&ctx, "UI system with 10+ widgets", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 14, ui.Color.gray);
+        ctx.cursor.y += 22;
+        ui.label(&ctx, "ECS architecture", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 14, ui.Color.gray);
+        ctx.cursor.y += 22;
+        ui.label(&ctx, "Font atlas rendering", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 14, ui.Color.gray);
+        ctx.cursor.y += 22;
+        ui.label(&ctx, "Virtual 1920x1080 resolution", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 14, ui.Color.gray);
+        ctx.cursor.y += 22;
+        ui.label(&ctx, "HiDPI/Retina support", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 14, ui.Color.gray);
         ctx.cursor.y += 30;
 
         ui.label(&ctx, "See examples/demo_ui.zig for more!", .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 12, ui.Color.imperial_gold);

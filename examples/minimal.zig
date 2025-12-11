@@ -1,8 +1,8 @@
 const std = @import("std");
-const EtherMud = @import("EtherMud");
-const sdl = EtherMud.sdl;
-const bgfx = EtherMud.bgfx;
-const stb = EtherMud.stb_truetype; // Required for stb_truetype allocator exports
+const AgentiteZ = @import("AgentiteZ");
+const sdl = AgentiteZ.sdl;
+const bgfx = AgentiteZ.bgfx;
+const stb = AgentiteZ.stb_truetype; // Required for stb_truetype allocator exports
 const c = sdl.c;
 
 comptime {
@@ -11,7 +11,7 @@ comptime {
 }
 
 pub fn main() !void {
-    std.debug.print("EtherMud Minimal Example - Starting...\n", .{});
+    std.debug.print("AgentiteZ Minimal Example - Starting...\n", .{});
 
     // Initialize SDL3
     if (!c.SDL_Init(c.SDL_INIT_VIDEO | c.SDL_INIT_EVENTS)) {
@@ -22,7 +22,7 @@ pub fn main() !void {
 
     // Create window
     const window = c.SDL_CreateWindow(
-        "EtherMud - Minimal Example",
+        "AgentiteZ - Minimal Example",
         1920,
         1080,
         c.SDL_WINDOW_RESIZABLE,

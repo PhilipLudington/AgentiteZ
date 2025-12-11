@@ -1,13 +1,13 @@
 const std = @import("std");
-const EtherMud = @import("EtherMud");
-const sdl = EtherMud.sdl;
-const bgfx = EtherMud.bgfx;
-const stb = EtherMud.stb_truetype;
-const ui = EtherMud.ui;
-const ecs = EtherMud.ecs;
-const platform = EtherMud.platform;
-const config = EtherMud.config;
-const renderer = EtherMud.renderer;
+const AgentiteZ = @import("AgentiteZ");
+const sdl = AgentiteZ.sdl;
+const bgfx = AgentiteZ.bgfx;
+const stb = AgentiteZ.stb_truetype;
+const ui = AgentiteZ.ui;
+const ecs = AgentiteZ.ecs;
+const platform = AgentiteZ.platform;
+const config = AgentiteZ.config;
+const renderer = AgentiteZ.renderer;
 const c = sdl.c;
 
 // ECS demo components
@@ -51,7 +51,7 @@ const DemoState = struct {
 };
 
 pub fn main() !void {
-    std.debug.print("EtherMud UI Demo - Starting...\n", .{});
+    std.debug.print("AgentiteZ UI Demo - Starting...\n", .{});
 
     // Initialize SDL3
     if (!c.SDL_Init(c.SDL_INIT_VIDEO | c.SDL_INIT_EVENTS)) {
@@ -62,7 +62,7 @@ pub fn main() !void {
 
     // Create window with HiDPI support for Retina displays
     const window = c.SDL_CreateWindow(
-        "EtherMud UI Widget Demo",
+        "AgentiteZ UI Widget Demo",
         1920,
         1080,
         c.SDL_WINDOW_RESIZABLE | c.SDL_WINDOW_MAXIMIZED | c.SDL_WINDOW_HIGH_PIXEL_DENSITY,
@@ -294,8 +294,24 @@ pub fn main() !void {
             try input_state.handleEvent(&event);
         }
 
-        // Convert to UI InputState for widgets
-        const input = input_state.toUIInputState();
+        // Get current pixel dimensions for coordinate conversion
+        var current_pixel_width: c_int = undefined;
+        var current_pixel_height: c_int = undefined;
+        _ = c.SDL_GetWindowSizeInPixels(window, &current_pixel_width, &current_pixel_height);
+
+        // Calculate scale from logical window to virtual 1920x1080 space
+        // The renderer uses fixed 1920x1080 virtual coordinates
+        const scale_x = 1920.0 / @as(f32, @floatFromInt(window_width));
+        const scale_y = 1080.0 / @as(f32, @floatFromInt(window_height));
+
+        // Convert mouse from logical window coords to virtual 1920x1080 coords
+        const raw_mouse = input_state.getMousePosition();
+        const virtual_mouse_x = raw_mouse.x * scale_x;
+        const virtual_mouse_y = raw_mouse.y * scale_y;
+
+        // Convert to UI InputState with scaled mouse position
+        var input = input_state.toUIInputState();
+        input.mouse_pos = .{ .x = virtual_mouse_x, .y = virtual_mouse_y };
 
         // Prepare current window info for DPI/resize handling
         const current_window_info = ui.WindowInfo{
@@ -328,17 +344,13 @@ pub fn main() !void {
             } else |_| {}
         }
 
-        // Get current pixel dimensions for HiDPI rendering
-        var current_pixel_width: c_int = undefined;
-        var current_pixel_height: c_int = undefined;
-        _ = c.SDL_GetWindowSizeInPixels(window, &current_pixel_width, &current_pixel_height);
-
         // Set view 0 (main UI) to cover the entire framebuffer (use pixel dimensions for HiDPI)
         bgfx.setViewRect(0, 0, 0, @intCast(current_pixel_width), @intCast(current_pixel_height));
 
         // Set view 1 (overlay) to cover the entire framebuffer
         // Views are rendered in order, so view 1 will render after view 0
         bgfx.setViewRect(1, 0, 0, @intCast(current_pixel_width), @intCast(current_pixel_height));
+        bgfx.setViewClear(1, bgfx.ClearFlags_None, 0, 1.0, 0); // No clear for overlay
 
         // Clear the framebuffer
         bgfx.setViewClear(
@@ -359,7 +371,7 @@ pub fn main() !void {
         ctx.beginFrame(input, current_window_info);
 
         // Draw title
-        ui.label(&ctx, "EtherMud Engine Demo", .{ .x = 20, .y = 20 }, 24, ui.Color.white);
+        ui.label(&ctx, "AgentiteZ Engine Demo", .{ .x = 20, .y = 20 }, 24, ui.Color.white);
         ui.label(&ctx, "UI Widgets + ECS + Layout + Font Atlas + Save/Load + Config", .{ .x = 20, .y = 50 }, 14, ui.Color.gray);
 
         // Set cursor for auto-layout
@@ -744,7 +756,7 @@ pub fn main() !void {
         ui.label(&ctx, measure_line1, .{ .x = ctx.cursor.x, .y = ctx.cursor.y }, 11, ui.Color.init(150, 200, 255, 255));
         ctx.cursor.y += 18;
 
-        const test_text2 = "EtherMud Engine";
+        const test_text2 = "AgentiteZ Engine";
         const width2 = font_atlas.measureText(test_text2);
         var measure_buf2: [128]u8 = undefined;
         const measure_line2 = std.fmt.bufPrint(&measure_buf2,
@@ -777,7 +789,7 @@ pub fn main() !void {
         ui.endPanel(&ctx);
 
         // === NEW: Orbitron Font Showcase ===
-        const orbitron_panel_rect = ui.Rect.init(1250, 790, 400, 300);
+        const orbitron_panel_rect = ui.Rect.init(1250, 780, 400, 280);
         try ui.beginPanel(&ctx, "Orbitron Font Showcase (NEW!)", orbitron_panel_rect, ui.Color.panel_bg);
 
         ctx.cursor.y += 5;  // Add spacing after panel header
@@ -850,8 +862,9 @@ pub fn main() !void {
         // End 2D renderer frame (flushes draw batches)
         renderer_2d.endFrame();
 
-        // Submit an empty primitive to view 0
+        // Submit an empty primitive to view 0 and view 1 (overlay for dropdowns)
         bgfx.touch(0);
+        bgfx.touch(1);
 
         // Advance to next frame
         _ = bgfx.frame(false);
