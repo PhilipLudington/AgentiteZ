@@ -1,4 +1,4 @@
-# EtherMud Engine API Documentation
+# AgentiteZ Engine API Documentation
 
 **Version:** 0.2.0
 **Zig Version:** 0.15.1
@@ -6,7 +6,7 @@
 
 ## Overview
 
-EtherMud is a custom game engine built with Zig featuring an Entity-Component-System architecture, comprehensive UI system, and cross-platform rendering via SDL3 + bgfx.
+AgentiteZ is a custom game engine built with Zig featuring an Entity-Component-System architecture, comprehensive UI system, and cross-platform rendering via SDL3 + bgfx.
 
 ## Quick Navigation
 
@@ -48,7 +48,7 @@ EtherMud is a custom game engine built with Zig featuring an Entity-Component-Sy
 ## Module Architecture
 
 ```
-EtherMud/
+AgentiteZ/
 ├── ecs/          # Entity-Component-System
 │   ├── entity.zig
 │   ├── component.zig
@@ -83,7 +83,7 @@ EtherMud/
 
 ```zig
 const std = @import("std");
-const EtherMud = @import("EtherMud");
+const AgentiteZ = @import("AgentiteZ");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -94,11 +94,11 @@ pub fn main() !void {
     // ... (see examples/minimal.zig for complete setup)
 
     // Create ECS world
-    var world = EtherMud.ecs.World.init(allocator);
+    var world = AgentiteZ.ecs.World.init(allocator);
     defer world.deinit();
 
     // Create UI context
-    var ui_ctx = try EtherMud.ui.Context.init(allocator, window_width, window_height);
+    var ui_ctx = try AgentiteZ.ui.Context.init(allocator, window_width, window_height);
     defer ui_ctx.deinit();
 
     // Main loop
@@ -110,7 +110,7 @@ pub fn main() !void {
         const input = input_state.toUIInputState();
         ui_ctx.beginFrame(input, null);
 
-        _ = EtherMud.ui.button(&ui_ctx, "Click Me", EtherMud.ui.Rect.init(100, 100, 150, 40));
+        _ = AgentiteZ.ui.button(&ui_ctx, "Click Me", AgentiteZ.ui.Rect.init(100, 100, 150, 40));
 
         ui_ctx.endFrame();
     }

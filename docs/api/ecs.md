@@ -13,7 +13,7 @@ The ECS module provides a professional entity-component-system implementation wi
 ## Module Structure
 
 ```zig
-const ecs = @import("EtherMud").ecs;
+const ecs = @import("AgentiteZ").ecs;
 
 // Core types
 ecs.Entity         // Entity handle with ID + generation
@@ -336,7 +336,7 @@ try world.update(delta_time);
 
 ```zig
 const std = @import("std");
-const ecs = @import("EtherMud").ecs;
+const ecs = @import("AgentiteZ").ecs;
 
 // Define components
 const Position = struct {

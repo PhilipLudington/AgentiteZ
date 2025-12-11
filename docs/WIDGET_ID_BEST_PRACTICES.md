@@ -1,12 +1,12 @@
 # Widget ID Best Practices
 
-**Critical Information for EtherMud UI Development**
+**Critical Information for AgentiteZ UI Development**
 
 ---
 
 ## Understanding Widget IDs
 
-EtherMud uses a **hybrid immediate-mode UI** system where widget state persists between frames. Each widget needs a unique ID to track its state (hover, active, focused, etc.).
+AgentiteZ uses a **hybrid immediate-mode UI** system where widget state persists between frames. Each widget needs a unique ID to track its state (hover, active, focused, etc.).
 
 ### How IDs are Generated
 
