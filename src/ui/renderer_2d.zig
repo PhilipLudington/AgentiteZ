@@ -6,6 +6,11 @@ const types = @import("types.zig");
 const shaders = @import("shaders.zig");
 const log = @import("../log.zig");
 const FontAtlasModule = @import("../renderer/font_atlas.zig");
+const dpi = @import("dpi.zig");
+
+// Virtual resolution constants - all rendering uses this coordinate space
+pub const VIRTUAL_WIDTH: f32 = dpi.VIRTUAL_WIDTH;
+pub const VIRTUAL_HEIGHT: f32 = dpi.VIRTUAL_HEIGHT;
 
 pub const Rect = types.Rect;
 pub const Color = types.Color;
@@ -284,7 +289,11 @@ pub const Renderer2D = struct {
     viewport_offset_x: i32,
     viewport_offset_y: i32,
 
-    pub fn init(allocator: std.mem.Allocator, window_width: u32, window_height: u32) !Renderer2D {
+    // Viewport scale for virtual->physical coordinate conversion
+    // This is (physical_viewport_height / VIRTUAL_HEIGHT)
+    viewport_scale: f32,
+
+    pub fn init(allocator: std.mem.Allocator, window_width: u32, window_height: u32, font_path: []const u8) !Renderer2D {
         // Initialize shader programs
         const shader_programs = try shaders.ShaderPrograms.init();
 
@@ -334,8 +343,6 @@ pub const Renderer2D = struct {
         texture_vertex_layout.end();
 
         // Load bitmap font atlas (HiDPI-ready)
-        // Font path is relative to the executable's working directory
-        const font_path = "external/bgfx/examples/runtime/font/roboto-regular.ttf";
         const font_size: f32 = 24.0;
         const flip_uv = false; // BGFX uses standard UV coordinates
         const font_atlas = FontAtlasModule.FontAtlas.init(allocator, font_path, font_size, flip_uv) catch |err| {
@@ -343,6 +350,11 @@ pub const Renderer2D = struct {
             log.err("Renderer2D", "Make sure the font file exists and working directory is set correctly", .{});
             return err;
         };
+
+        // Calculate initial viewport scale based on window fitting into virtual space
+        const scale_x = @as(f32, @floatFromInt(window_width)) / VIRTUAL_WIDTH;
+        const scale_y = @as(f32, @floatFromInt(window_height)) / VIRTUAL_HEIGHT;
+        const initial_viewport_scale = @min(scale_x, scale_y);
 
         return .{
             .allocator = allocator,
@@ -358,11 +370,12 @@ pub const Renderer2D = struct {
             .view_id = 0,
             .default_view_id = 0,
             .overlay_view_id = 1,
-            .scissor_rect = Rect{ .x = 0, .y = 0, .width = @floatFromInt(window_width), .height = @floatFromInt(window_height) },
+            .scissor_rect = Rect{ .x = 0, .y = 0, .width = VIRTUAL_WIDTH, .height = VIRTUAL_HEIGHT },
             .scissor_enabled = false,
             .dpi_scale = 1.0, // Default to 1.0 for standard DPI
             .viewport_offset_x = 0, // Default to no offset
             .viewport_offset_y = 0,
+            .viewport_scale = initial_viewport_scale,
         };
     }
 
@@ -377,11 +390,25 @@ pub const Renderer2D = struct {
     pub fn updateWindowSize(self: *Renderer2D, width: u32, height: u32) void {
         self.window_width = width;
         self.window_height = height;
+        // Recalculate viewport scale when window size changes
+        const scale_x = @as(f32, @floatFromInt(width)) / VIRTUAL_WIDTH;
+        const scale_y = @as(f32, @floatFromInt(height)) / VIRTUAL_HEIGHT;
+        self.viewport_scale = @min(scale_x, scale_y);
+        // Recalculate letterbox offset
+        const viewport_width = VIRTUAL_WIDTH * self.viewport_scale;
+        const viewport_height = VIRTUAL_HEIGHT * self.viewport_scale;
+        self.viewport_offset_x = @intFromFloat((@as(f32, @floatFromInt(width)) - viewport_width) / 2.0);
+        self.viewport_offset_y = @intFromFloat((@as(f32, @floatFromInt(height)) - viewport_height) / 2.0);
     }
 
     /// Set DPI scale for HiDPI displays (call after init or when DPI changes)
     pub fn setDpiScale(self: *Renderer2D, dpi_scale: f32) void {
         self.dpi_scale = dpi_scale;
+    }
+
+    /// Set viewport scale for virtual->physical coordinate conversion
+    pub fn setViewportScale(self: *Renderer2D, scale: f32) void {
+        self.viewport_scale = scale;
     }
 
     /// Set viewport offset for letterboxing (in physical pixels)
@@ -396,9 +423,9 @@ pub const Renderer2D = struct {
     }
 
     /// Set viewport parameters from ViewportInfo (convenience method)
-    /// This combines setDpiScale() and setViewportOffset() in one call
+    /// This sets scale and offset in one call for letterbox rendering
     pub fn setViewportFromInfo(self: *Renderer2D, viewport: @import("../renderer/viewport.zig").ViewportInfo) void {
-        self.setDpiScale(viewport.scale);
+        self.viewport_scale = viewport.scale;
         self.setViewportOffset(@intCast(viewport.x), @intCast(viewport.y));
     }
 
@@ -460,11 +487,13 @@ pub const Renderer2D = struct {
             std.mem.sliceAsBytes(self.color_batch.indices.items),
         );
 
-        // Set up orthographic projection
+        // Set up orthographic projection using VIRTUAL resolution (1920x1080)
+        // This ensures all game code can use consistent virtual coordinates
+        // regardless of actual window size. The viewport scaling handles the rest.
         const proj = orthoProjection(
             0,
-            @floatFromInt(self.window_width),
-            @floatFromInt(self.window_height),
+            VIRTUAL_WIDTH,
+            VIRTUAL_HEIGHT,
             0,
             -1,
             1,
@@ -476,16 +505,18 @@ pub const Renderer2D = struct {
         bgfx.setTransientIndexBuffer(&tib, 0, num_indices);
 
         // Apply scissor if enabled - call setScissor fresh each time
-        // IMPORTANT: Scale by DPI for HiDPI displays (BGFX expects physical pixels)
+        // IMPORTANT: Scale from virtual coords to physical pixels
+        // virtual -> physical = viewport_scale * dpi_scale
         // CRITICAL: Add viewport offset for letterboxing
         if (self.scissor_enabled) {
-            const scissor_x = @as(i32, @intFromFloat(self.scissor_rect.x * self.dpi_scale)) + self.viewport_offset_x;
-            const scissor_y = @as(i32, @intFromFloat(self.scissor_rect.y * self.dpi_scale)) + self.viewport_offset_y;
+            const scissor_scale = self.viewport_scale * self.dpi_scale;
+            const scissor_x = @as(i32, @intFromFloat(self.scissor_rect.x * scissor_scale)) + self.viewport_offset_x;
+            const scissor_y = @as(i32, @intFromFloat(self.scissor_rect.y * scissor_scale)) + self.viewport_offset_y;
             _ = bgfx.setScissor(
                 @intCast(scissor_x),
                 @intCast(scissor_y),
-                @intFromFloat(self.scissor_rect.width * self.dpi_scale),
-                @intFromFloat(self.scissor_rect.height * self.dpi_scale)
+                @intFromFloat(self.scissor_rect.width * scissor_scale),
+                @intFromFloat(self.scissor_rect.height * scissor_scale)
             );
         }
 
@@ -542,11 +573,11 @@ pub const Renderer2D = struct {
             std.mem.sliceAsBytes(self.texture_batch.indices.items),
         );
 
-        // Set up orthographic projection
+        // Set up orthographic projection using VIRTUAL resolution (1920x1080)
         const proj = orthoProjection(
             0,
-            @floatFromInt(self.window_width),
-            @floatFromInt(self.window_height),
+            VIRTUAL_WIDTH,
+            VIRTUAL_HEIGHT,
             0,
             -1,
             1,
@@ -562,16 +593,18 @@ pub const Renderer2D = struct {
         bgfx.setTexture(0, self.shader_programs.texture_sampler, atlas.texture, 0xffffffff);
 
         // Apply scissor if enabled - call setScissor fresh each time
-        // IMPORTANT: Scale by DPI for HiDPI displays (BGFX expects physical pixels)
+        // IMPORTANT: Scale from virtual coords to physical pixels
+        // virtual -> physical = viewport_scale * dpi_scale
         // CRITICAL: Add viewport offset for letterboxing
         if (self.scissor_enabled) {
-            const scissor_x = @as(i32, @intFromFloat(self.scissor_rect.x * self.dpi_scale)) + self.viewport_offset_x;
-            const scissor_y = @as(i32, @intFromFloat(self.scissor_rect.y * self.dpi_scale)) + self.viewport_offset_y;
+            const scissor_scale = self.viewport_scale * self.dpi_scale;
+            const scissor_x = @as(i32, @intFromFloat(self.scissor_rect.x * scissor_scale)) + self.viewport_offset_x;
+            const scissor_y = @as(i32, @intFromFloat(self.scissor_rect.y * scissor_scale)) + self.viewport_offset_y;
             _ = bgfx.setScissor(
                 @intCast(scissor_x),
                 @intCast(scissor_y),
-                @intFromFloat(self.scissor_rect.width * self.dpi_scale),
-                @intFromFloat(self.scissor_rect.height * self.dpi_scale)
+                @intFromFloat(self.scissor_rect.width * scissor_scale),
+                @intFromFloat(self.scissor_rect.height * scissor_scale)
             );
         }
 

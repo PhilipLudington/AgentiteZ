@@ -28,7 +28,7 @@ pub fn build(b: *std.Build) void {
     // to our consumers. We must give it a name because a Zig package can expose
     // multiple modules and consumers will need to be able to specify which
     // module they want to access.
-    const mod = b.addModule("EtherMud", .{
+    const mod = b.addModule("AgentiteZ", .{
         // The root source file is the "entry point" of this module. Users of
         // this module will only be able to access public declarations contained
         // in this file, which means that if you have declarations that you
@@ -65,7 +65,7 @@ pub fn build(b: *std.Build) void {
     // === Executables ===
 
     // Basic demo executable (full demo from main.zig)
-    const basic_exe = createExecutable(b, target, optimize, mod, "EtherMud", "src/main.zig", is_macos, &bgfx_flags);
+    const basic_exe = createExecutable(b, target, optimize, mod, "AgentiteZ", "src/main.zig", is_macos, &bgfx_flags);
     b.installArtifact(basic_exe);
 
     // Minimal example - simple window with blue screen
@@ -75,6 +75,18 @@ pub fn build(b: *std.Build) void {
     // Demo UI executable (full widget showcase)
     const demo_ui_exe = createExecutable(b, target, optimize, mod, "demo_ui", "examples/demo_ui.zig", is_macos, &bgfx_flags);
     b.installArtifact(demo_ui_exe);
+
+    // ECS Game example - demonstrates ECS with player, enemies, collision
+    const ecs_game_exe = createExecutable(b, target, optimize, mod, "ecs_game", "examples/ecs_game.zig", is_macos, &bgfx_flags);
+    b.installArtifact(ecs_game_exe);
+
+    // UI Forms example - demonstrates interactive forms with all widget types
+    const ui_forms_exe = createExecutable(b, target, optimize, mod, "ui_forms", "examples/ui_forms.zig", is_macos, &bgfx_flags);
+    b.installArtifact(ui_forms_exe);
+
+    // Shapes Demo - demonstrates 2D rendering primitives and animation
+    const shapes_demo_exe = createExecutable(b, target, optimize, mod, "shapes_demo", "examples/shapes_demo.zig", is_macos, &bgfx_flags);
+    b.installArtifact(shapes_demo_exe);
 
     // === Run Steps ===
 
@@ -101,6 +113,24 @@ pub fn build(b: *std.Build) void {
         run_cmd.addArgs(args);
     }
     run_step.dependOn(&run_cmd.step);
+
+    // Run step for ECS game example
+    const run_ecs_game_step = b.step("run-ecs-game", "Run the ECS game example (player, enemies, shooting)");
+    const run_ecs_game_cmd = b.addRunArtifact(ecs_game_exe);
+    run_ecs_game_cmd.step.dependOn(b.getInstallStep());
+    run_ecs_game_step.dependOn(&run_ecs_game_cmd.step);
+
+    // Run step for UI forms example
+    const run_ui_forms_step = b.step("run-ui-forms", "Run the UI forms example (interactive forms)");
+    const run_ui_forms_cmd = b.addRunArtifact(ui_forms_exe);
+    run_ui_forms_cmd.step.dependOn(b.getInstallStep());
+    run_ui_forms_step.dependOn(&run_ui_forms_cmd.step);
+
+    // Run step for shapes demo
+    const run_shapes_step = b.step("run-shapes", "Run the 2D shapes demo (animation, colors)");
+    const run_shapes_cmd = b.addRunArtifact(shapes_demo_exe);
+    run_shapes_cmd.step.dependOn(b.getInstallStep());
+    run_shapes_step.dependOn(&run_shapes_cmd.step);
 
     // === Tests ===
 
@@ -154,7 +184,7 @@ fn createExecutable(
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "EtherMud", .module = ethermud_mod },
+                .{ .name = "AgentiteZ", .module = ethermud_mod },
             },
         }),
     });
