@@ -35,3 +35,10 @@ Temporary Items
 .idea/
 .DS_Store
 **/.DS_Store
+
+# AI assistant configs
+.claude/
+.grok/
+
+# Backup files
+*.bak

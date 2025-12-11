@@ -216,11 +216,11 @@ All dependencies linked/built automatically by `build.zig`.
 
 ## License
 
-Project license to be determined. See repository for details.
+This project is licensed under the MIT License. See [LICENSE](../../LICENSE) for details.
 
 ## Contributing
 
-See `IMPROVEMENTS_PLAN.md` for current development roadmap and task priorities.
+Contributions are welcome! Please see the [README](../../README.md) for contribution guidelines.
 
 ---
 
