@@ -131,6 +131,9 @@ The project has two main modules:
    - `victory` - Victory conditions and win state management
    - `htn` - Hierarchical Task Network planner for AI
    - `ai_tracks` - Parallel decision tracks for AI agents
+   - `power` - Power network with poles, connectivity, and distribution
+   - `crafting` - Recipe/crafting system with queues and batches
+   - `rate_tracker` - Production/consumption rate analytics
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -242,6 +245,15 @@ Hierarchical Task Network planner for AI with primitive/compound tasks, precondi
 
 ### AI Tracks (`src/ai_tracks.zig`) **[Full docs](docs/api/ai-tracks.md)**
 Parallel decision tracks for AI with combat/economy/diplomacy domains, urgency-based scoring, conflict detection, and cross-track coordination.
+
+### Power Network (`src/power.zig`) **[Full docs](docs/api/power.md)**
+Grid-based power distribution with poles, Union-Find connectivity, production/consumption tracking, brownout detection, and cell coverage queries.
+
+### Crafting System (`src/crafting.zig`) **[Full docs](docs/api/crafting.md)**
+Recipe-based production with inputs/outputs/byproducts, crafting queues, batch processing, speed modifiers, recipe unlocking, and category filtering.
+
+### Rate Tracker (`src/rate_tracker.zig`) **[Full docs](docs/api/rate-tracker.md)**
+Production/consumption analytics with configurable time windows (10s/30s/60s), historical circular buffer, stability detection, and graph-friendly data.
 
 ---
 

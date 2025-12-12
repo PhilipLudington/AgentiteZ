@@ -37,6 +37,11 @@ pub const victory = @import("victory.zig");
 pub const htn = @import("htn.zig");
 pub const ai_tracks = @import("ai_tracks.zig");
 
+// Phase 7: Factory Systems
+pub const power = @import("power.zig");
+pub const crafting = @import("crafting.zig");
+pub const rate_tracker = @import("rate_tracker.zig");
+
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
 comptime {
