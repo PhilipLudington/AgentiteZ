@@ -22,6 +22,10 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **Tilemap System** - Chunk-based tile storage with multiple layers, collision, and auto-tiling
 - **Spatial Index** - Grid-based spatial hashing for O(1) entity lookup and fast proximity queries
 - **Pathfinding** - A* algorithm with diagonal movement, variable costs, smoothing, and dynamic obstacles
+- **Event System** - Generic pub/sub dispatcher with queuing, context support, and recursion prevention
+- **Resource System** - Generic resource storage with capacity limits, rates, and transfers
+- **Modifier System** - Stackable value modifiers with source tracking and duration
+- **Turn Manager** - Turn-based game flow with configurable phases and callbacks
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
@@ -107,6 +111,10 @@ The project has two main modules:
    - `tilemap` - Chunk-based tilemap with layers, collision, and auto-tiling
    - `spatial` - Grid-based spatial indexing for fast proximity queries
    - `pathfinding` - A* pathfinding with configurable movement and costs
+   - `event` - Generic pub/sub event dispatcher
+   - `resource` - Resource storage with capacity, rates, and transfers
+   - `modifier` - Stackable value modifiers with source tracking
+   - `turn` - Turn-based game flow with phases and callbacks
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -1183,6 +1191,655 @@ if (pathfinder.hasLineOfSight(
 - Optional iteration limit for real-time games
 
 **Tests:** 20 comprehensive tests covering basic paths, obstacles, diagonal movement, variable costs, path smoothing, line of sight, dynamic obstacles, callbacks, and edge cases.
+
+### Event System
+
+Generic pub/sub event dispatcher for decoupled game system communication (`src/event.zig`):
+
+**Features:**
+- **Generic event types** - Works with any tagged union for type-safe events
+- **Subscription handles** - Safe unsubscription using returned handles
+- **Context pointers** - Pass state to callbacks without closures
+- **Event queuing** - Automatic queue during dispatch prevents recursion
+- **"All events" subscription** - Subscribe to every event type for debugging/logging
+- **Batch unsubscription** - Remove all subscriptions for a context at once
+- **Statistics tracking** - Monitor events dispatched, queued, and subscription counts
+
+**Usage Pattern - Basic Events:**
+```zig
+const event = @import("AgentiteZ").event;
+
+// Define game events as a tagged union
+const GameEvent = union(enum) {
+    entity_spawned: struct { id: u32, x: f32, y: f32 },
+    entity_died: struct { id: u32, killer_id: ?u32 },
+    level_completed: struct { level: u32, score: u32 },
+    damage_dealt: struct { target: u32, amount: u32, source: u32 },
+};
+
+// Create dispatcher
+var dispatcher = event.EventDispatcher(GameEvent).init(allocator);
+defer dispatcher.deinit();
+
+// Subscribe to specific event type
+const handle = try dispatcher.subscribe(.entity_died, onEntityDied, &game_state);
+
+// Dispatch events
+try dispatcher.dispatch(.{ .entity_died = .{ .id = 42, .killer_id = 7 } });
+try dispatcher.dispatch(.{ .damage_dealt = .{ .target = 10, .amount = 25, .source = 7 } });
+
+// Unsubscribe when done
+dispatcher.unsubscribe(handle);
+```
+
+**Usage Pattern - Event Callbacks:**
+```zig
+const GameState = struct {
+    score: u32 = 0,
+    enemies_killed: u32 = 0,
+
+    fn onEntityDied(evt: GameEvent, ctx: ?*anyopaque) void {
+        const self: *GameState = @ptrCast(@alignCast(ctx.?));
+        switch (evt) {
+            .entity_died => |data| {
+                self.enemies_killed += 1;
+                if (data.killer_id != null) {
+                    self.score += 100;
+                }
+            },
+            else => {},
+        }
+    }
+};
+
+var state = GameState{};
+_ = try dispatcher.subscribe(.entity_died, GameState.onEntityDied, &state);
+```
+
+**Usage Pattern - Subscribe to All Events (Logging):**
+```zig
+fn logAllEvents(evt: GameEvent, _: ?*anyopaque) void {
+    std.log.info("Event: {s}", .{@tagName(evt)});
+}
+
+// Receive every event type
+_ = try dispatcher.subscribeAll(logAllEvents, null);
+```
+
+**Usage Pattern - Event Queuing:**
+```zig
+// Queue events for later processing (useful for deterministic replay)
+try dispatcher.queue(.{ .damage_dealt = .{ .target = 5, .amount = 10, .source = 1 } });
+try dispatcher.queue(.{ .damage_dealt = .{ .target = 5, .amount = 15, .source = 2 } });
+
+// Process all queued events at end of frame
+dispatcher.processQueue();
+
+// Events dispatched from within callbacks are automatically queued
+// to prevent recursion and ensure predictable ordering
+```
+
+**Usage Pattern - Cleanup:**
+```zig
+// Remove all subscriptions for a destroyed object
+const removed = dispatcher.unsubscribeContext(&dying_object);
+std.debug.print("Removed {} subscriptions\n", .{removed});
+
+// Clear all subscriptions
+dispatcher.clearSubscriptions();
+
+// Clear pending events without processing
+dispatcher.clearQueue();
+```
+
+**Usage Pattern - Statistics:**
+```zig
+const stats = dispatcher.getStats();
+std.debug.print("Subscriptions: {}, Queued: {}, Dispatched: {}\n", .{
+    stats.subscriptions,
+    stats.queued,
+    stats.events_dispatched,
+});
+
+// Get subscriber count for specific event
+const death_listeners = dispatcher.getSubscriptionCountFor(.entity_died);
+```
+
+**Data Structures:**
+- `EventDispatcher(EventType)` - Generic dispatcher parameterized by event union
+- `SubscriptionHandle` - Handle for unsubscription (id + event_tag)
+- `EventDispatcherConfig` - Configuration (initial capacities, warning settings)
+
+**Configuration Options:**
+```zig
+var dispatcher = event.EventDispatcher(GameEvent).initWithConfig(allocator, .{
+    .initial_subscription_capacity = 32,  // Pre-allocate subscription slots
+    .initial_queue_capacity = 64,         // Pre-allocate queue slots
+    .warn_no_subscribers = true,          // Log warning when no listeners
+});
+```
+
+**Key Methods:**
+- `subscribe(event_tag, callback, context)` - Subscribe to specific event type
+- `subscribeAll(callback, context)` - Subscribe to all events
+- `unsubscribe(handle)` - Remove subscription by handle
+- `unsubscribeContext(context)` - Remove all subscriptions for a context
+- `dispatch(event)` - Send event immediately (queues if mid-dispatch)
+- `queue(event)` - Queue event for later processing
+- `processQueue()` - Process all queued events
+- `getStats()` - Get dispatch statistics
+
+**Design Notes:**
+- Events dispatched from within callbacks are automatically queued to prevent stack overflow
+- Queue is processed in FIFO order after the initial dispatch completes
+- Callbacks receive the full event union; use switch to extract data
+- Null context is allowed for stateless callbacks
+
+**Tests:** 16 comprehensive tests covering subscribe/unsubscribe, event filtering, queuing, recursion prevention, context cleanup, statistics, and complex event data.
+
+### Resource System
+
+Generic resource storage and management for game economies (`src/resource.zig`):
+
+**Features:**
+- **Generic resource types** - Works with any enum type
+- **Per-resource capacity limits** - Optional maximum storage with overflow policies
+- **Production/consumption rates** - Track income and expenses per resource
+- **Net rate calculation** - Automatic production - consumption tracking
+- **Resource transfers** - Move resources between storages
+- **Overflow/deficit policies** - Configurable handling (clamp, reject, allow)
+- **Atomic cost operations** - All-or-nothing multi-resource deductions
+
+**Usage Pattern - Basic Storage:**
+```zig
+const resource = @import("AgentiteZ").resource;
+
+// Define resource types for your game
+const ResourceType = enum { credits, energy, minerals, food, research };
+
+// Create storage
+var storage = resource.ResourceStorage(ResourceType).init(allocator);
+defer storage.deinit();
+
+// Define resources with properties
+try storage.defineResource(.credits, .{
+    .initial_amount = 1000,
+    .max_capacity = 10000,
+    .overflow_policy = .clamp,
+});
+
+try storage.defineResource(.energy, .{
+    .initial_amount = 100,
+    .max_capacity = 500,
+});
+
+// Basic operations
+_ = storage.add(.credits, 500);      // Add resources
+_ = storage.remove(.credits, 200);   // Remove resources
+const balance = storage.get(.credits); // Get current amount
+const space = storage.getAvailableSpace(.energy); // Check capacity
+```
+
+**Usage Pattern - Rates and Production:**
+```zig
+// Set production and consumption rates (per tick/turn)
+_ = storage.setProductionRate(.energy, 50);   // +50 per tick
+_ = storage.setConsumptionRate(.energy, 30);  // -30 per tick
+
+// Query rates
+const production = storage.getProductionRate(.energy);
+const consumption = storage.getConsumptionRate(.energy);
+const net_rate = storage.getNetRate(.energy); // +20 per tick
+
+// Apply rates each game tick
+storage.applyRates(1.0);  // Apply for 1 tick
+storage.applyRates(delta_time); // Or use real delta time
+
+// Reset rates each turn (for recalculation)
+storage.resetRates();
+```
+
+**Usage Pattern - Transfers:**
+```zig
+var player_storage = resource.ResourceStorage(ResourceType).init(allocator);
+var bank_storage = resource.ResourceStorage(ResourceType).init(allocator);
+defer player_storage.deinit();
+defer bank_storage.deinit();
+
+// Define resources in both
+try player_storage.defineResource(.credits, .{ .initial_amount = 1000 });
+try bank_storage.defineResource(.credits, .{ .initial_amount = 0, .max_capacity = 5000 });
+
+// Exact transfer (fails if insufficient or no space)
+const result = player_storage.transferTo(&bank_storage, .credits, 500);
+if (result == .success) {
+    // Transfer complete
+}
+
+// Transfer as much as possible (returns actual amount transferred)
+const transferred = player_storage.transferToMax(&bank_storage, .credits, 1000);
+std.debug.print("Transferred: {d}\n", .{transferred});
+```
+
+**Usage Pattern - Cost Operations:**
+```zig
+// Define costs for a building
+const building_cost = [_]struct { ResourceType, f64 }{
+    .{ .credits, 500 },
+    .{ .minerals, 200 },
+    .{ .energy, 50 },
+};
+
+// Check if player can afford
+if (storage.canAfford(&building_cost)) {
+    // Atomic deduction (all or nothing)
+    const result = storage.deductCosts(&building_cost);
+    if (result == .success) {
+        // Build the building
+    }
+}
+
+// Add multiple resources at once
+storage.addBulk(&[_]struct { ResourceType, f64 }{
+    .{ .credits, 100 },
+    .{ .minerals, 50 },
+});
+```
+
+**Usage Pattern - Overflow and Deficit Policies:**
+```zig
+// Clamp to capacity (default)
+try storage.defineResource(.energy, .{
+    .max_capacity = 100,
+    .overflow_policy = .clamp,  // Excess is lost
+});
+
+// Reject overflow
+try storage.defineResource(.rare_items, .{
+    .max_capacity = 10,
+    .overflow_policy = .reject, // Returns .overflow if would exceed
+});
+
+// Allow debt (negative values)
+try storage.defineResource(.reputation, .{
+    .initial_amount = 50,
+    .deficit_policy = .allow_negative, // Can go negative
+});
+```
+
+**Usage Pattern - Status and Summary:**
+```zig
+// Check fill level
+const fill = storage.getFillRatio(.energy); // 0.0 to 1.0
+
+// Get complete summary
+if (storage.getSummary(.energy)) |summary| {
+    std.debug.print("Energy: {d}/{d} (+{d}/-{d} = {d}/tick)\n", .{
+        summary.amount,
+        summary.capacity,
+        summary.production,
+        summary.consumption,
+        summary.net_rate,
+    });
+}
+
+// Check resource availability
+if (storage.has(.minerals, 100)) {
+    // Has at least 100 minerals
+}
+
+if (storage.hasSpace(.minerals, 50)) {
+    // Can accept 50 more minerals
+}
+```
+
+**Data Structures:**
+- `ResourceStorage(ResourceType)` - Generic storage parameterized by resource enum
+- `ResourceDefinition` - Resource properties (capacity, initial, policies)
+- `ResourceResult` - Operation result (success, insufficient, overflow, not_defined)
+- `OverflowPolicy` - How to handle additions beyond capacity (clamp, reject, allow)
+- `DeficitPolicy` - How to handle removals below zero (clamp, reject, allow_negative)
+
+**Key Methods:**
+- `defineResource(type, definition)` - Define a resource with properties
+- `add(type, amount)` / `remove(type, amount)` - Modify amounts
+- `get(type)` / `set(type, amount)` - Query/set amounts
+- `has(type, amount)` / `hasSpace(type, amount)` - Check availability
+- `setProductionRate()` / `setConsumptionRate()` - Set rates
+- `getNetRate()` - Get production - consumption
+- `applyRates(delta)` - Apply rates over time
+- `transferTo()` / `transferToMax()` - Move resources between storages
+- `canAfford(costs)` / `deductCosts(costs)` - Multi-resource operations
+
+**Tests:** 22 comprehensive tests covering add/remove, capacity limits, overflow/deficit policies, rates, transfers, cost operations, and edge cases.
+
+### Modifier System
+
+Stackable value modifiers with source tracking for game stats (`src/modifier.zig`):
+
+**Features:**
+- **Flat modifiers** - Added to base value before percentages
+- **Percentage modifiers** - Applied as multipliers after flat
+- **Final flat modifiers** - Added after percentages
+- **Multipliers** - Stacked multiplicatively at the end
+- **Configurable stacking** - Additive, multiplicative, highest-only, lowest-only
+- **Source tracking** - Know which item/buff/skill contributed each modifier
+- **Temporary modifiers** - Auto-expire after duration ticks
+- **Min/max clamping** - Enforce value bounds
+
+**Usage Pattern - Basic Modifiers:**
+```zig
+const modifier = @import("AgentiteZ").modifier;
+
+var stack = modifier.ModifierStack.init(allocator);
+defer stack.deinit();
+
+// Add modifiers from various sources
+try stack.addFlat("iron_sword", 15);      // +15 damage
+try stack.addFlat("ring_of_power", 5);    // +5 damage
+try stack.addPercent("strength", 0.25);   // +25% from strength stat
+try stack.addPercent("rage_buff", 0.10);  // +10% from buff
+
+// Apply to base damage
+const base_damage: f64 = 100;
+const final_damage = stack.apply(base_damage);
+// (100 + 15 + 5) * 1.35 = 162
+```
+
+**Usage Pattern - Modifier Types:**
+```zig
+// Flat: Added first to base
+try stack.addFlat("sword", 10);
+
+// Percent: Multiplies (base + flat)
+try stack.addPercent("strength", 0.25); // +25%
+
+// Flat Final: Added after percentages
+try stack.addFlatFinal("enchantment", 5);
+
+// Multiplier: Multiplies everything at end
+try stack.addMultiplier("critical_hit", 2.0);
+
+// Application order:
+// result = ((base + flat) * (1 + percent) + flat_final) * multipliers
+```
+
+**Usage Pattern - Temporary Modifiers:**
+```zig
+// Add a buff that lasts 5 ticks/turns
+try stack.addTemporary("berserk", .percent, 0.50, 5);
+
+// Each game tick, update durations and remove expired
+_ = stack.tick();  // Returns count of expired modifiers
+
+// After 5 ticks, the berserk modifier is automatically removed
+```
+
+**Usage Pattern - Source Management:**
+```zig
+// Remove all modifiers from a source (e.g., when unequipping)
+const removed = stack.removeSource("iron_sword");
+std.debug.print("Removed {} modifiers from sword\n", .{removed});
+
+// Check if source has any modifiers
+if (stack.hasSource("buff_spell")) {
+    // Buff is still active
+}
+
+// Get all unique sources for UI
+const sources = try stack.getSources(allocator);
+defer allocator.free(sources);
+for (sources) |source| {
+    std.debug.print("Active modifier source: {s}\n", .{source});
+}
+```
+
+**Usage Pattern - Stacking Rules:**
+```zig
+// Default: percentages are additive
+var stack = modifier.ModifierStack.init(allocator);
+try stack.addPercent("buff1", 0.20); // +20%
+try stack.addPercent("buff2", 0.30); // +30%
+// Total: +50%
+
+// Highest-only stacking (for non-stacking buffs)
+var stack = modifier.ModifierStack.initWithConfig(allocator, .{
+    .percent_stacking = .highest_only,
+});
+try stack.addPercent("buff1", 0.20);
+try stack.addPercent("buff2", 0.30);
+// Total: +30% (only highest applies)
+```
+
+**Usage Pattern - Value Clamping:**
+```zig
+var stack = modifier.ModifierStack.initWithConfig(allocator, .{
+    .min_value = 1,     // Never go below 1
+    .max_value = 9999,  // Cap at 9999
+});
+
+try stack.addFlat("curse", -1000);
+const result = stack.apply(100);  // Returns 1 (clamped to min)
+```
+
+**Usage Pattern - UI Breakdown:**
+```zig
+const breakdown = try stack.getBreakdown(allocator);
+defer allocator.free(breakdown);
+
+for (breakdown) |info| {
+    const sign: []const u8 = if (info.is_buff) "+" else "";
+    const type_str = switch (info.mod_type) {
+        .flat => "",
+        .percent => "%",
+        .flat_final => " (final)",
+        .multiplier => "x",
+    };
+    std.debug.print("{s}: {s}{d:.0}{s}", .{
+        info.source, sign, info.value * if (info.mod_type == .percent) 100 else 1, type_str,
+    });
+    if (info.remaining_duration) |dur| {
+        std.debug.print(" ({d} turns left)", .{dur});
+    }
+    std.debug.print("\n", .{});
+}
+```
+
+**Data Structures:**
+- `ModifierStack` - Collection of modifiers with apply logic
+- `Modifier` - Single modifier entry (source, type, value, duration)
+- `ModifierType` - flat, percent, flat_final, multiplier
+- `StackingRule` - additive, multiplicative, highest_only, lowest_only
+- `ModifierStackConfig` - Stacking rules and min/max clamping
+
+**Key Methods:**
+- `addFlat(source, value)` - Add flat modifier
+- `addPercent(source, value)` - Add percentage modifier (0.25 = +25%)
+- `addMultiplier(source, value)` - Add multiplier (2.0 = double)
+- `addTemporary(source, type, value, duration)` - Add expiring modifier
+- `apply(base)` - Calculate final value
+- `tick()` - Update durations, remove expired
+- `removeSource(source)` - Remove all modifiers from source
+- `getBreakdown()` - Get all modifiers for UI display
+- `getTotalFlat()` / `getTotalPercent()` / `getTotalMultiplier()` - Get totals by type
+
+**Tests:** 24 comprehensive tests covering all modifier types, stacking rules, source tracking, temporary modifiers, clamping, and edge cases.
+
+### Turn Manager
+
+Turn-based game flow control with configurable phases (`src/turn.zig`):
+
+**Features:**
+- **Generic phase types** - Works with any enum for phases
+- **Configurable phase ordering** - Add, remove, insert phases dynamically
+- **Phase callbacks** - Register handlers for each phase with context
+- **Turn lifecycle callbacks** - on_turn_start, on_turn_end, on_phase_start, on_phase_end
+- **Progress tracking** - Get current phase and progress for UI
+- **Error handling** - Phase failures with optional continue-on-failure
+- **Phase timing** - Optional profiling of phase duration
+- **Turn modes** - Sequential, simultaneous, real-time-with-pause
+
+**Usage Pattern - Basic Turn Processing:**
+```zig
+const turn = @import("AgentiteZ").turn;
+
+// Define game phases
+const Phase = enum { upkeep, main, combat, end };
+
+// Create turn manager
+var manager = turn.TurnManager(Phase).init(allocator);
+defer manager.deinit();
+
+// Set phase order
+try manager.setPhaseOrder(&.{ .upkeep, .main, .combat, .end });
+
+// Process a turn
+const result = manager.processTurn();
+if (result.success) {
+    std.debug.print("Turn {} completed ({} phases)\n",
+        .{result.turn_number, result.phases_completed});
+}
+```
+
+**Usage Pattern - Phase Callbacks:**
+```zig
+const GameState = struct {
+    resources: i32 = 0,
+    units_moved: bool = false,
+
+    fn upkeepPhase(_: Phase, ctx: ?*anyopaque) turn.PhaseResult {
+        const state: *GameState = @ptrCast(@alignCast(ctx.?));
+        state.resources += 100;  // Collect resources
+        return .{ .success = true };
+    }
+
+    fn mainPhase(_: Phase, ctx: ?*anyopaque) turn.PhaseResult {
+        const state: *GameState = @ptrCast(@alignCast(ctx.?));
+        // Process player actions
+        state.units_moved = true;
+        return .{ .success = true };
+    }
+
+    fn combatPhase(_: Phase, _: ?*anyopaque) turn.PhaseResult {
+        // Resolve combat
+        return .{ .success = true };
+    }
+};
+
+var game = GameState{};
+try manager.registerPhase(.upkeep, GameState.upkeepPhase, &game);
+try manager.registerPhase(.main, GameState.mainPhase, &game);
+try manager.registerPhase(.combat, GameState.combatPhase, &game);
+
+_ = manager.processTurn();
+```
+
+**Usage Pattern - Turn Lifecycle Callbacks:**
+```zig
+const Callbacks = struct {
+    fn onTurnStart(turn_num: u32, ctx: ?*anyopaque) void {
+        const game: *Game = @ptrCast(@alignCast(ctx.?));
+        game.log("Turn {} started", .{turn_num});
+    }
+
+    fn onTurnEnd(turn_num: u32, ctx: ?*anyopaque) void {
+        const game: *Game = @ptrCast(@alignCast(ctx.?));
+        game.autosave();
+    }
+
+    fn onPhaseStart(phase: Phase, ctx: ?*anyopaque) void {
+        const game: *Game = @ptrCast(@alignCast(ctx.?));
+        game.ui.showPhase(@tagName(phase));
+    }
+
+    fn onPhaseEnd(phase: Phase, result: turn.PhaseResult, _: ?*anyopaque) void {
+        if (!result.success) {
+            std.log.warn("Phase {s} failed", .{@tagName(phase)});
+        }
+    }
+};
+
+manager.setCallbacks(
+    Callbacks.onTurnStart,
+    Callbacks.onTurnEnd,
+    Callbacks.onPhaseStart,
+    Callbacks.onPhaseEnd,
+    &game,
+);
+```
+
+**Usage Pattern - Error Handling:**
+```zig
+// Stop on first failure (default)
+var manager = turn.TurnManager(Phase).init(allocator);
+
+// Or continue processing after failures
+var manager = turn.TurnManager(Phase).initWithConfig(allocator, .{
+    .continue_on_failure = true,
+});
+
+// Phase can signal to skip remaining phases
+fn victoryCheckPhase(_: Phase, ctx: ?*anyopaque) turn.PhaseResult {
+    const game: *Game = @ptrCast(@alignCast(ctx.?));
+    if (game.checkVictory()) {
+        return .{ .success = true, .skip_remaining = true };
+    }
+    return .{ .success = true };
+}
+```
+
+**Usage Pattern - Progress and State:**
+```zig
+// Get current state
+const current_turn = manager.getTurnNumber();
+const progress = manager.getProgress();  // 0.0 to 1.0
+const current_phase = manager.getCurrentPhase();
+
+// Check phase completion
+if (manager.hasPhaseCompleted(.combat)) {
+    // Combat already resolved this turn
+}
+
+// Manual turn advancement (for custom control)
+_ = manager.nextTurn();  // Increment without processing
+
+// Reset for new game
+manager.reset();
+
+// Load saved turn number
+manager.setTurnNumber(saved_turn);
+```
+
+**Usage Pattern - Profiling:**
+```zig
+var manager = turn.TurnManager(Phase).initWithConfig(allocator, .{
+    .profiling_enabled = true,
+});
+
+const result = manager.processTurn();
+std.debug.print("Turn took {d}ms\n", .{result.total_duration_ns / 1_000_000});
+```
+
+**Data Structures:**
+- `TurnManager(PhaseType)` - Generic manager parameterized by phase enum
+- `PhaseResult` - Result of a single phase (success, error_message, duration_ns, skip_remaining)
+- `TurnResult(PhaseType)` - Result of a complete turn
+- `TurnManagerConfig` - Configuration (profiling, continue_on_failure, turn_mode)
+- `TurnMode` - sequential, simultaneous, real_time_with_pause
+
+**Key Methods:**
+- `setPhaseOrder(phases)` - Set phase execution order
+- `addPhase(phase)` / `insertPhase(index, phase)` / `removePhase(phase)` - Modify order
+- `registerPhase(phase, callback, context)` - Register phase handler
+- `processTurn()` - Process all phases and return result
+- `processPhase(phase)` - Process single phase
+- `nextTurn()` - Advance turn number without processing
+- `getTurnNumber()` / `getCurrentPhase()` / `getProgress()` - Query state
+- `hasPhaseCompleted(phase)` - Check if phase ran this turn
+- `setCallbacks(...)` - Set lifecycle callbacks
+- `reset()` - Reset to turn 0
+
+**Tests:** 22 comprehensive tests covering phase ordering, callbacks, error handling, skip_remaining, progress tracking, profiling, and edge cases.
 
 ### Input State Abstraction
 

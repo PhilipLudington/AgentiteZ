@@ -18,6 +18,10 @@ pub const animation = @import("animation.zig");
 pub const tilemap = @import("tilemap.zig");
 pub const spatial = @import("spatial.zig");
 pub const pathfinding = @import("pathfinding.zig");
+pub const event = @import("event.zig");
+pub const resource = @import("resource.zig");
+pub const modifier = @import("modifier.zig");
+pub const turn = @import("turn.zig");
 
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
