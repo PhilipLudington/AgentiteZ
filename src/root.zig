@@ -44,6 +44,7 @@ pub const rate_tracker = @import("rate_tracker.zig");
 
 // Phase 8: Combat Systems
 pub const combat = @import("combat.zig");
+pub const fleet = @import("fleet.zig");
 
 // Phase 9: Utility Systems
 pub const command = @import("command.zig");

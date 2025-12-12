@@ -137,6 +137,7 @@ The project has two main modules:
    - `crafting` - Recipe/crafting system with queues and batches
    - `rate_tracker` - Production/consumption rate analytics
    - `combat` - Turn-based tactical combat with initiative, telegraphing, and reactions
+   - `fleet` - Strategic fleet/army combat with auto-resolve and commander bonuses
    - `command` - Command queue with validation, replay history, and batching
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
@@ -261,6 +262,9 @@ Production/consumption analytics with configurable time windows (10s/30s/60s), h
 
 ### Turn-Based Combat (`src/combat.zig`) **[Full docs](docs/api/combat.md)**
 Initiative-based tactical combat with perfect information via telegraphing, reaction mechanics (dodge/counter), status effects, and damage calculation with armor/piercing.
+
+### Fleet Combat (`src/fleet.zig`)
+Strategic fleet/army combat with unit classes (18 types), rock-paper-scissors counters, commander bonuses/abilities, auto-resolve with battle preview, morale/retreat mechanics, fleet merging/splitting, and experience system.
 
 ### Command Queue (`src/command.zig`)
 Command pattern implementation with type registration (validators/executors), FIFO queue with sequence numbers, fluent builder API, circular buffer history for replay, command batching, and statistics tracking. Supports 8 parameter types: int32, int64, float32, float64, bool, entity, string, pointer.
