@@ -21,6 +21,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **Animation System** - Frame-based sprite animation with clips, events, and state machine
 - **Tilemap System** - Chunk-based tile storage with multiple layers, collision, and auto-tiling
 - **Spatial Index** - Grid-based spatial hashing for O(1) entity lookup and fast proximity queries
+- **Pathfinding** - A* algorithm with diagonal movement, variable costs, smoothing, and dynamic obstacles
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
@@ -105,6 +106,7 @@ The project has two main modules:
    - `animation` - Frame-based sprite animation with state machine
    - `tilemap` - Chunk-based tilemap with layers, collision, and auto-tiling
    - `spatial` - Grid-based spatial indexing for fast proximity queries
+   - `pathfinding` - A* pathfinding with configurable movement and costs
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -983,6 +985,204 @@ Smaller cells = more overhead for large queries, but faster for small queries.
 Larger cells = less cell lookups, but more entities to filter per cell.
 
 **Tests:** 18 comprehensive tests covering Vec2, AABB, insert/remove/update, queries, nearest neighbor, edge cases, and custom ID types.
+
+### Pathfinding System
+
+A* pathfinding algorithm for grid-based maps (`src/pathfinding.zig`):
+
+**Features:**
+- **A* algorithm** - Optimal pathfinding with configurable heuristics
+- **Diagonal movement** - Optional 8-directional movement with corner-cutting prevention
+- **Variable movement costs** - Per-tile terrain costs (swamps, roads, etc.)
+- **Path smoothing** - Line-of-sight based waypoint reduction
+- **Dynamic obstacles** - Runtime obstacle updates without recreation
+- **Custom callbacks** - Flexible walkability and cost functions
+
+**Usage Pattern - Basic Pathfinding:**
+```zig
+const pathfinding = @import("AgentiteZ").pathfinding;
+
+// Create pathfinder for a 100x100 grid
+var walkable: [10000]bool = undefined;
+@memset(&walkable, true);
+
+// Block some cells
+walkable[5 + 5 * 100] = false; // Block (5, 5)
+
+var pathfinder = pathfinding.AStarPathfinder.initWithGrid(allocator, 100, 100, &walkable);
+
+// Find path from (0,0) to (99,99)
+var path = try pathfinder.findPath(
+    pathfinding.Coord.init(0, 0),
+    pathfinding.Coord.init(99, 99),
+);
+defer path.deinit();
+
+if (path.complete) {
+    std.debug.print("Path found with {d} steps, cost: {d:.1}\n",
+        .{path.len(), path.total_cost});
+
+    // Get next step for movement
+    if (path.getNextStep()) |next| {
+        moveEntityTo(next.x, next.y);
+    }
+
+    // Iterate all waypoints
+    for (path.points.items) |point| {
+        std.debug.print("  ({d}, {d})\n", .{point.x, point.y});
+    }
+}
+```
+
+**Usage Pattern - Configuration:**
+```zig
+var pathfinder = pathfinding.AStarPathfinder.initWithGrid(allocator, 100, 100, &walkable);
+
+// Configure movement options
+pathfinder.setConfig(.{
+    .allow_diagonal = true,          // Enable 8-directional movement
+    .diagonal_cost = 1.414,          // sqrt(2) for diagonal moves
+    .cardinal_cost = 1.0,            // Cost for N/S/E/W moves
+    .max_iterations = 10000,         // Limit search (0 = unlimited)
+    .heuristic_weight = 1.0,         // Standard A* (higher = faster, less optimal)
+});
+```
+
+**Usage Pattern - Variable Terrain Costs:**
+```zig
+var cost_grid: [10000]f32 = undefined;
+@memset(&cost_grid, 1.0);
+
+// Create expensive terrain (swamp, rough terrain)
+var y: usize = 20;
+while (y < 30) : (y += 1) {
+    var x: usize = 20;
+    while (x < 30) : (x += 1) {
+        cost_grid[x + y * 100] = 5.0; // 5x movement cost
+    }
+}
+
+// Create fast terrain (roads)
+for (0..100) |x| {
+    cost_grid[x + 50 * 100] = 0.5; // Half movement cost
+}
+
+pathfinder.setCostGrid(&cost_grid);
+
+// Paths will now prefer roads and avoid swamps
+var path = try pathfinder.findPath(start, goal);
+```
+
+**Usage Pattern - Path Smoothing:**
+```zig
+var path = try pathfinder.findPath(start, goal);
+defer path.deinit();
+
+if (path.complete) {
+    const original_len = path.len();
+
+    // Remove unnecessary waypoints using line-of-sight
+    try pathfinder.smoothPath(&path);
+
+    std.debug.print("Smoothed from {d} to {d} waypoints\n",
+        .{original_len, path.len()});
+}
+```
+
+**Usage Pattern - Dynamic Obstacles:**
+```zig
+// Initial pathfinding
+var path = try pathfinder.findPath(start, goal);
+
+// Enemy moved to block the path - update obstacle
+pathfinder.setObstacle(enemy_x, enemy_y, true);
+
+// Recalculate path
+path.deinit();
+path = try pathfinder.findPath(current_pos, goal);
+
+// Enemy moved away - remove obstacle
+pathfinder.setObstacle(enemy_x, enemy_y, false);
+
+// Batch obstacle updates
+const new_obstacles = [_]pathfinding.Coord{
+    pathfinding.Coord.init(10, 10),
+    pathfinding.Coord.init(10, 11),
+    pathfinding.Coord.init(10, 12),
+};
+pathfinder.setObstacles(&new_obstacles, true);
+```
+
+**Usage Pattern - Custom Callbacks:**
+```zig
+// Custom walkability based on game logic
+fn isWalkable(x: i32, y: i32, user_data: ?*anyopaque) bool {
+    const game: *GameState = @ptrCast(@alignCast(user_data.?));
+    if (game.getTileAt(x, y)) |tile| {
+        return !tile.is_solid and !tile.has_enemy;
+    }
+    return false;
+}
+
+// Custom movement cost based on terrain type
+fn getMovementCost(from_x: i32, from_y: i32, to_x: i32, to_y: i32, user_data: ?*anyopaque) f32 {
+    _ = from_x; _ = from_y;
+    const game: *GameState = @ptrCast(@alignCast(user_data.?));
+    if (game.getTileAt(to_x, to_y)) |tile| {
+        return tile.movement_cost;
+    }
+    return 1.0;
+}
+
+var pathfinder = pathfinding.AStarPathfinder.initWithCallback(
+    allocator, 100, 100, isWalkable, &game_state
+);
+pathfinder.setCostCallback(getMovementCost, &game_state);
+```
+
+**Usage Pattern - Line of Sight:**
+```zig
+// Check if two points have clear line of sight
+if (pathfinder.hasLineOfSight(
+    pathfinding.Coord.init(10, 10),
+    pathfinding.Coord.init(50, 50),
+)) {
+    // Direct path available - can shoot or see target
+    fireAt(target);
+} else {
+    // Blocked - need to find path around obstacles
+    var path = try pathfinder.findPath(shooter_pos, target_pos);
+}
+```
+
+**Data Structures:**
+- `AStarPathfinder` - Main pathfinder with grid, callbacks, and configuration
+- `Coord` - 2D integer coordinate with distance functions
+- `Path` - Path result with points, cost, and completion status
+- `PathfindingConfig` - Algorithm settings (diagonal, costs, limits)
+
+**Coord Methods:**
+- `init(x, y)` - Create coordinate
+- `eql(other)` - Equality check
+- `manhattanDistance(other)` - Manhattan (4-dir) distance
+- `chebyshevDistance(other)` - Chebyshev (8-dir) distance
+- `euclideanDistanceSquared(other)` - Squared Euclidean distance
+
+**Path Methods:**
+- `len()` - Number of waypoints
+- `isEmpty()` - Check if path is empty
+- `getNextStep()` - Get next waypoint after start
+- `complete` - Whether path reaches goal
+- `total_cost` - Total movement cost
+
+**Performance Notes:**
+- Uses binary heap priority queue for O(log n) node selection
+- Hash maps for O(1) cost and parent lookups
+- Corner-cutting prevention for realistic diagonal movement
+- Early exit when goal found
+- Optional iteration limit for real-time games
+
+**Tests:** 20 comprehensive tests covering basic paths, obstacles, diagonal movement, variable costs, path smoothing, line of sight, dynamic obstacles, callbacks, and edge cases.
 
 ### Input State Abstraction
 

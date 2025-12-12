@@ -17,6 +17,7 @@ pub const camera = @import("camera.zig");
 pub const animation = @import("animation.zig");
 pub const tilemap = @import("tilemap.zig");
 pub const spatial = @import("spatial.zig");
+pub const pathfinding = @import("pathfinding.zig");
 
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
