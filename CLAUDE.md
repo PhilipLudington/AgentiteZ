@@ -13,6 +13,8 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **UI System** - 10 widget types with automatic layout, DPI scaling, and centralized Theme system
 - **Rendering** - SDL3 + bgfx for cross-platform graphics (Metal/Vulkan/DirectX/OpenGL)
 - **Audio System** - Sound effects and music playback with mixing, volume control, and 2D panning
+- **Camera System** - 2D camera with zoom, rotation, smooth follow, bounds, and screen shake
+- **Animation System** - Frame-based sprite animation with clips, events, and state machine
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
@@ -93,6 +95,8 @@ The project has two main modules:
    - `data` - TOML parsing utilities (no external dependencies)
    - `config` - Configuration loaders for game content (rooms, items, NPCs)
    - `audio` - Sound effects and music playback system
+   - `camera` - 2D camera system with zoom, follow, and shake
+   - `animation` - Frame-based sprite animation with state machine
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -422,6 +426,229 @@ audio_system.stopAllSounds();
 - Audio is mixed in a callback using SDL3's audio stream API
 - All input formats automatically converted to device format
 - Channel stealing when all 32 channels are in use
+
+### Camera System
+
+2D camera system for game rendering (`src/camera.zig`):
+
+**Features:**
+- **Position, zoom, rotation** - Full 2D camera transform
+- **Smooth follow** - Frame-rate independent lerp to target position
+- **Camera bounds** - Constrain camera to world limits
+- **Screen shake** - Configurable intensity, duration, decay, and frequency
+- **Coordinate conversion** - World-to-screen and screen-to-world transforms
+- **Visibility testing** - Check if points/rects are visible in camera view
+- **View matrix** - Get transformation matrix for bgfx rendering
+
+**Usage Pattern:**
+```zig
+const camera = @import("AgentiteZ").camera;
+
+// Create camera with default settings (centered at origin, zoom 1.0)
+var cam = camera.Camera2D.init(.{});
+
+// Or with custom initial position and zoom
+var cam = camera.Camera2D.init(.{
+    .position = camera.Vec2.init(500.0, 300.0),
+    .zoom = 1.5,
+    .rotation = 0.0,
+});
+
+// Set smooth follow target (camera will lerp to target each update)
+cam.setTarget(player_position);
+cam.setFollowSmoothing(0.1); // 0 = instant, higher = slower
+
+// Set camera movement bounds (world limits)
+cam.setBounds(camera.CameraBounds.fromRect(0, 0, 4000, 3000));
+
+// Set zoom limits
+cam.setZoomLimits(0.5, 4.0);
+
+// Update camera each frame (handles follow, bounds, shake)
+cam.update(delta_time);
+
+// Screen shake effect
+cam.shake(.{
+    .intensity = 10.0,  // Max pixels offset
+    .duration = 0.3,    // Seconds
+    .decay = true,      // Fade out over duration
+    .frequency = 30.0,  // Oscillations per second
+});
+
+// Coordinate conversion (uses 1920x1080 virtual resolution)
+const screen_pos = cam.worldToScreen(entity_x, entity_y);
+const world_pos = cam.screenToWorld(mouse_x, mouse_y);
+
+// Visibility checks
+if (cam.isPointVisible(enemy_x, enemy_y)) {
+    // Render enemy
+}
+if (cam.isRectVisible(tile_x, tile_y, tile_w, tile_h)) {
+    // Render tile
+}
+
+// Get visible world area (for culling)
+const visible = cam.getVisibleRect();
+// visible.x, visible.y, visible.width, visible.height
+
+// Camera controls
+cam.setZoom(2.0);
+cam.adjustZoom(0.1);     // Add to zoom
+cam.multiplyZoom(1.1);   // Multiply zoom (good for scroll wheel)
+cam.zoomTowards(world_point, 0.5); // Zoom keeping point stationary
+
+cam.move(camera.Vec2.init(10.0, 0.0));      // Move in world space
+cam.moveScreen(camera.Vec2.init(10.0, 0.0)); // Move in screen space
+cam.centerOn(camera.Vec2.init(500.0, 300.0)); // Instant reposition
+
+cam.setRotation(std.math.pi / 4.0);  // Radians
+cam.setRotationDegrees(45.0);         // Degrees
+
+// Get view matrix for bgfx (4x4 row-major)
+const view_matrix = cam.getViewMatrix();
+```
+
+**Data Structures:**
+- `Camera2D` - Main camera with position, zoom, rotation, follow, bounds, shake
+- `Vec2` - 2D vector with math operations (add, sub, scale, lerp, rotate, normalize)
+- `CameraBounds` - World bounds for constraining camera movement
+- `ShakeConfig` - Screen shake parameters (intensity, duration, decay, frequency)
+
+**Integration with Renderer2D:**
+The Camera2D system works with virtual resolution (1920x1080). To integrate with Renderer2D:
+1. Transform world positions using `worldToScreen()` before drawing
+2. Use `getVisibleRect()` for efficient culling of off-screen objects
+3. Use `screenToWorld()` to convert mouse input to world coordinates
+
+**Tests:** 25 comprehensive tests covering Vec2 math, bounds, zoom, follow, shake, and coordinate conversion.
+
+### Animation System
+
+Frame-based sprite animation system (`src/animation.zig`):
+
+**Features:**
+- **Animation clips** - Define animations by frame range, fps, and loop settings
+- **Playback controls** - Play, pause, unpause, stop, reverse playback
+- **Playback speed** - Variable speed multiplier (slow motion, fast forward)
+- **Frame events** - Callbacks triggered at specific frames (footsteps, impacts)
+- **Progress tracking** - Get current frame, progress (0-1), finished state
+- **State machine** - Automatic transitions between animations with conditions
+- **Blend transitions** - Cross-fade between animations
+
+**Usage Pattern - Basic Animation:**
+```zig
+const animation = @import("AgentiteZ").animation;
+
+// Create animation state
+var anim = animation.Animation.init(allocator);
+defer anim.deinit();
+
+// Define clips (frame indices in sprite sheet)
+try anim.addClip("idle", .{ .start = 0, .end = 3, .fps = 8, .loop = true });
+try anim.addClip("walk", .{ .start = 4, .end = 11, .fps = 12, .loop = true });
+try anim.addClip("attack", .{ .start = 12, .end = 17, .fps = 15, .loop = false });
+
+// Play animation
+anim.play("idle");
+
+// Update each frame
+anim.update(delta_time);
+
+// Get current frame for rendering
+const frame = anim.getCurrentFrame();
+
+// Playback controls
+anim.pause();
+anim.unpause();
+anim.stop();
+anim.playReversed("walk");
+
+// Speed control
+anim.setSpeed(2.0);  // 2x speed
+anim.setSpeed(0.5);  // Half speed
+
+// Check state
+if (anim.isFinished()) {
+    // Non-looping animation completed
+}
+const progress = anim.getProgress();  // 0.0 to 1.0
+```
+
+**Usage Pattern - Frame Events:**
+```zig
+const events = [_]animation.FrameEvent{
+    .{ .frame = 0, .name = "start" },
+    .{ .frame = 4, .name = "footstep_left" },
+    .{ .frame = 8, .name = "footstep_right" },
+};
+
+try anim.addClip("walk", .{
+    .start = 0,
+    .end = 11,
+    .fps = 12,
+    .loop = true,
+    .events = &events,
+});
+
+// Set callback for events
+anim.setEventCallback(onAnimationEvent, user_data);
+
+fn onAnimationEvent(event_name: []const u8, user_data: ?*anyopaque) void {
+    if (std.mem.eql(u8, event_name, "footstep_left")) {
+        // Play footstep sound
+    }
+}
+```
+
+**Usage Pattern - State Machine:**
+```zig
+var sm = animation.AnimationStateMachine.init(allocator);
+defer sm.deinit();
+
+// Add clips
+try sm.addClip("idle", .{ .start = 0, .end = 3, .fps = 8, .loop = true });
+try sm.addClip("walk", .{ .start = 4, .end = 11, .fps = 12, .loop = true });
+try sm.addClip("attack", .{ .start = 12, .end = 17, .fps = 15, .loop = false });
+
+// Add automatic transitions
+try sm.addTransition("attack", "idle", .{
+    .on_finish = true,  // Transition when attack finishes
+    .blend_duration = 0.1,  // 100ms cross-fade
+});
+
+// Conditional transitions (with callback)
+try sm.addTransition("idle", "walk", .{
+    .condition = isMoving,
+    .user_data = &player,
+});
+
+// Set initial state
+sm.setState("idle");
+
+// Update each frame
+sm.update(delta_time);
+
+// Manual transition
+sm.transitionTo("attack", 0.05);  // 50ms blend
+
+// Get current frame for rendering
+const frame = sm.getCurrentFrame();
+
+// During blend transitions
+if (sm.getBlendProgress()) |progress| {
+    const from_frame = sm.getBlendFromFrame().?;
+    // Blend between from_frame and getCurrentFrame() by progress
+}
+```
+
+**Data Structures:**
+- `Animation` - Animation state with clips, playback, and events
+- `AnimationClip` - Clip definition (name, start/end frame, fps, loop, events)
+- `AnimationStateMachine` - State machine for automatic transitions
+- `FrameEvent` - Event triggered at specific frame
+- `PlaybackState` - stopped, playing, paused
+
+**Tests:** 20 comprehensive tests covering clips, playback, looping, events, and state machine.
 
 ### Input State Abstraction
 
