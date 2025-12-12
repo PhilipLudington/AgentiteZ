@@ -32,6 +32,8 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **Tech Tree** - Research system with prerequisites (AND/OR), progress tracking, and unlocks
 - **Fog of War** - Per-player visibility with vision sources, line-of-sight, and shared vision
 - **Victory Conditions** - Multiple victory types with progress tracking and custom callbacks
+- **HTN Planner** - Hierarchical Task Network for AI planning with primitive/compound tasks
+- **AI Tracks** - Parallel decision tracks (combat, economy, diplomacy) with coordination
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
@@ -127,6 +129,8 @@ The project has two main modules:
    - `tech` - Technology tree with research and unlocks
    - `fog` - Fog of war visibility system
    - `victory` - Victory conditions and win state management
+   - `htn` - Hierarchical Task Network planner for AI
+   - `ai_tracks` - Parallel decision tracks for AI agents
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -232,6 +236,12 @@ Per-player visibility with three states (unexplored/explored/visible), vision so
 
 ### Victory Conditions (`src/victory.zig`) **[Full docs](docs/api/victory.md)**
 Multiple victory types with custom condition callbacks, progress tracking, player elimination, turn limits, and victory notifications.
+
+### HTN Planner (`src/htn.zig`) **[Full docs](docs/api/htn.md)**
+Hierarchical Task Network planner for AI with primitive/compound tasks, preconditions, effects, method selection, and plan generation.
+
+### AI Tracks (`src/ai_tracks.zig`) **[Full docs](docs/api/ai-tracks.md)**
+Parallel decision tracks for AI with combat/economy/diplomacy domains, urgency-based scoring, conflict detection, and cross-track coordination.
 
 ---
 

@@ -33,6 +33,10 @@ pub const tech = @import("tech.zig");
 pub const fog = @import("fog.zig");
 pub const victory = @import("victory.zig");
 
+// Phase 6: AI Advanced
+pub const htn = @import("htn.zig");
+pub const ai_tracks = @import("ai_tracks.zig");
+
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
 comptime {
