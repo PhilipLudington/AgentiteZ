@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Important Notes
+
+- **NEVER commit PLAN.md** - This is a local planning document that should not be committed to the repository.
+
 ## Project Overview
 
 AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing production-ready foundation systems for game development. It currently powers **Stellar Throne** (4X strategy game) and **Machinae** (factory-building game).
@@ -15,6 +19,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **Audio System** - Sound effects and music playback with mixing, volume control, and 2D panning
 - **Camera System** - 2D camera with zoom, rotation, smooth follow, bounds, and screen shake
 - **Animation System** - Frame-based sprite animation with clips, events, and state machine
+- **Tilemap System** - Chunk-based tile storage with multiple layers, collision, and auto-tiling
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
@@ -97,6 +102,7 @@ The project has two main modules:
    - `audio` - Sound effects and music playback system
    - `camera` - 2D camera system with zoom, follow, and shake
    - `animation` - Frame-based sprite animation with state machine
+   - `tilemap` - Chunk-based tilemap with layers, collision, and auto-tiling
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -649,6 +655,199 @@ if (sm.getBlendProgress()) |progress| {
 - `PlaybackState` - stopped, playing, paused
 
 **Tests:** 20 comprehensive tests covering clips, playback, looping, events, and state machine.
+
+### Tilemap System
+
+Chunk-based tilemap system for efficient large map storage and rendering (`src/tilemap.zig`):
+
+**Features:**
+- **Chunk-based storage** - 32x32 tiles per chunk for memory efficiency
+- **Sparse allocation** - Only allocates chunks when tiles are placed
+- **Multiple layers** - Up to 16 layers (ground, vegetation, objects, etc.)
+- **Tile collision** - Per-tile collision flags (solid, water, pit, platform, ladder, damage, trigger)
+- **Auto-tiling** - 8-neighbor based terrain transitions
+- **Tileset management** - UV calculation, collision flags, auto-tile terrain types
+- **Camera integration** - Efficient culling with visible tile/chunk range queries
+- **Coordinate conversion** - World-to-tile and tile-to-world transforms
+
+**Usage Pattern - Basic Tilemap:**
+```zig
+const tilemap = @import("AgentiteZ").tilemap;
+
+// Create tilemap (100x100 tiles, 32px per tile)
+var map = tilemap.Tilemap.init(allocator, .{
+    .width = 100,
+    .height = 100,
+    .tile_width = 32,
+    .tile_height = 32,
+});
+defer map.deinit();
+
+// Add layers
+const ground = try map.addLayer("ground");
+const objects = try map.addLayerWithOptions("objects", .{
+    .z_order = 1,
+    .visible = true,
+    .opacity = 1.0,
+});
+
+// Set tiles by ID
+try map.setTileID(ground, 5, 5, 1);  // Tile ID 1 at position (5, 5)
+try map.setTileID(objects, 5, 5, 10);
+
+// Set tiles with full control
+try map.setTile(ground, 10, 10, .{
+    .id = 2,
+    .collision = .{ .solid = true },
+});
+
+// Fill a region
+try map.fill(ground, 0, 0, 50, 50, .{ .id = 1 });
+
+// Get tile info
+const tile = map.getTile(ground, 5, 5);
+const tile_id = map.getTileID(ground, 5, 5);
+```
+
+**Usage Pattern - Tileset:**
+```zig
+// Create tileset from texture atlas
+var tileset = try tilemap.Tileset.init(allocator, .{
+    .tile_width = 32,
+    .tile_height = 32,
+    .texture_width = 512,
+    .texture_height = 512,
+    .spacing = 0,
+    .margin = 0,
+});
+defer tileset.deinit();
+
+// Set collision for specific tiles
+tileset.setCollision(1, .{ .solid = true });  // Tile 1 is solid
+tileset.setCollisionRange(10, 20, .{ .solid = true, .water = true });
+
+// Set auto-tile terrain types
+tileset.setAutoTileTerrain(1, 1);  // Tile 1 is terrain type 1
+
+// Attach tileset to map
+map.setTileset(&tileset);
+
+// Get UV coordinates for rendering
+if (tileset.getTileUV(1)) |uv| {
+    // uv.u0, uv.v0, uv.u1, uv.v1 for texture mapping
+}
+```
+
+**Usage Pattern - Collision Detection:**
+```zig
+// Check collision at world coordinates
+if (map.isSolid(player_x, player_y)) {
+    // Block movement
+}
+
+// Get detailed collision flags
+const flags = map.checkCollision(player_x, player_y);
+if (flags.water) {
+    // Player is in water
+}
+if (flags.damage) {
+    // Player takes damage
+}
+
+// Check collision at tile coordinates
+const tile_flags = map.checkCollisionTile(5, 5);
+```
+
+**Usage Pattern - Camera Integration:**
+```zig
+const camera = @import("AgentiteZ").camera;
+
+var cam = camera.Camera2D.init(.{
+    .position = camera.Vec2.init(500.0, 300.0),
+    .zoom = 1.0,
+});
+
+// Get visible tile range for culling
+const range = map.getVisibleTileRange(&cam);
+// range.min_x, range.min_y, range.max_x, range.max_y
+
+// Get visible chunk range (more efficient for large maps)
+const chunks = map.getVisibleChunkRange(&cam);
+
+// Iterate visible tiles efficiently
+if (map.visibleTileIterator(ground, &cam)) |*iter| {
+    while (iter.next()) |entry| {
+        // entry.x, entry.y - tile coordinates
+        // entry.tile - Tile struct
+        // entry.world_x, entry.world_y - world position
+        renderTile(entry);
+    }
+}
+```
+
+**Usage Pattern - Coordinate Conversion:**
+```zig
+// World to tile coordinates
+const coord = map.worldToTile(150.0, 200.0);
+// coord.x, coord.y
+
+// Tile to world (top-left corner)
+const world_pos = map.tileToWorld(5, 5);
+// world_pos.x, world_pos.y
+
+// Tile to world (center)
+const center = map.tileToWorldCenter(5, 5);
+
+// Get map world bounds
+const bounds = map.getWorldBounds();
+// bounds.x, bounds.y, bounds.width, bounds.height
+
+// Using TileCoord directly
+const tile_coord = tilemap.TileCoord.fromWorld(100.0, 75.0, 32);
+const world = tile_coord.toWorld(32);
+const is_valid = tile_coord.isInBounds(100, 100);
+```
+
+**Usage Pattern - Auto-Tiling:**
+```zig
+// Define auto-tile rule (maps neighbor configurations to tile variants)
+var variant_map: [256]u8 = undefined;
+// ... populate variant_map based on neighbor configurations
+
+try map.addAutoTileRule(.{
+    .terrain = 1,  // Terrain type
+    .base_tile_id = 1,  // Base tile ID for this terrain
+    .variant_map = variant_map,
+});
+
+// Update auto-tiling for a region after placing tiles
+map.updateAutoTileRegion(ground, 0, 0, 50, 50);
+
+// Update single tile
+map.updateAutoTile(ground, 5, 5);
+
+// Get neighbor mask for custom logic
+const mask = map.getNeighborMask(ground, 5, 5, 1);
+// mask.n, mask.s, mask.e, mask.w, mask.ne, mask.nw, mask.se, mask.sw
+```
+
+**Data Structures:**
+- `Tilemap` - Main tilemap with layers, tileset, and auto-tile rules
+- `TileLayer` - Single layer with sparse chunk storage
+- `TileChunk` - 32x32 tile block (allocated on demand)
+- `Tile` - Tile data (id, collision, auto_tile_variant, user_data)
+- `Tileset` - Texture atlas with UV coords, collision, and terrain data
+- `TileCoord` - Integer tile coordinate with conversion helpers
+- `TileUV` - UV coordinates for texture mapping
+- `CollisionFlags` - Packed collision flags (solid, water, pit, etc.)
+- `NeighborMask` - 8-bit neighbor configuration for auto-tiling
+
+**Constants:**
+- `CHUNK_SIZE` = 32 (tiles per chunk dimension)
+- `MAX_LAYERS` = 16
+- `EMPTY_TILE` = 0 (tile ID for empty)
+
+**Tests:** 18 comprehensive tests covering chunks, layers, collision, UV calculation, coordinate conversion, and visibility culling.
 
 ### Input State Abstraction
 
