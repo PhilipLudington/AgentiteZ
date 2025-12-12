@@ -35,6 +35,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **HTN Planner** - Hierarchical Task Network for AI planning with primitive/compound tasks
 - **AI Tracks** - Parallel decision tracks (combat, economy, diplomacy) with coordination
 - **Turn-Based Combat** - Initiative-based tactical combat with telegraphing, reactions, and status effects
+- **Command Queue** - Command pattern with validation, replay history, batching, and statistics
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
@@ -136,6 +137,7 @@ The project has two main modules:
    - `crafting` - Recipe/crafting system with queues and batches
    - `rate_tracker` - Production/consumption rate analytics
    - `combat` - Turn-based tactical combat with initiative, telegraphing, and reactions
+   - `command` - Command queue with validation, replay history, and batching
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -259,6 +261,9 @@ Production/consumption analytics with configurable time windows (10s/30s/60s), h
 
 ### Turn-Based Combat (`src/combat.zig`) **[Full docs](docs/api/combat.md)**
 Initiative-based tactical combat with perfect information via telegraphing, reaction mechanics (dodge/counter), status effects, and damage calculation with armor/piercing.
+
+### Command Queue (`src/command.zig`)
+Command pattern implementation with type registration (validators/executors), FIFO queue with sequence numbers, fluent builder API, circular buffer history for replay, command batching, and statistics tracking. Supports 8 parameter types: int32, int64, float32, float64, bool, entity, string, pointer.
 
 ---
 

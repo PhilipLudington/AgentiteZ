@@ -45,6 +45,9 @@ pub const rate_tracker = @import("rate_tracker.zig");
 // Phase 8: Combat Systems
 pub const combat = @import("combat.zig");
 
+// Phase 9: Utility Systems
+pub const command = @import("command.zig");
+
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
 comptime {
