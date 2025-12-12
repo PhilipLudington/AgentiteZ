@@ -36,6 +36,8 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **AI Tracks** - Parallel decision tracks (combat, economy, diplomacy) with coordination
 - **Turn-Based Combat** - Initiative-based tactical combat with telegraphing, reactions, and status effects
 - **Command Queue** - Command pattern with validation, replay history, batching, and statistics
+- **Dialog System** - Branching conversation trees with conditional responses and state tracking
+- **Formula Engine** - Runtime expression parsing with variables, operators, and built-in functions
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
@@ -139,6 +141,8 @@ The project has two main modules:
    - `combat` - Turn-based tactical combat with initiative, telegraphing, and reactions
    - `fleet` - Strategic fleet/army combat with auto-resolve and commander bonuses
    - `command` - Command queue with validation, replay history, and batching
+   - `dialog` - Dialog system with branching conversations and conditions
+   - `formula` - Expression parsing and evaluation with variables
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -268,6 +272,12 @@ Strategic fleet/army combat with unit classes (18 types), rock-paper-scissors co
 
 ### Command Queue (`src/command.zig`)
 Command pattern implementation with type registration (validators/executors), FIFO queue with sequence numbers, fluent builder API, circular buffer history for replay, command batching, and statistics tracking. Supports 8 parameter types: int32, int64, float32, float64, bool, entity, string, pointer.
+
+### Dialog System (`src/dialog.zig`)
+Branching conversation trees with dialog nodes, conditional options, state tracking, effects, and event callbacks. Supports conditions (flags, integer comparisons), effects (set/clear flags, modify integers, trigger events), and full history tracking.
+
+### Formula Engine (`src/formula.zig`)
+Runtime expression parsing and evaluation with variables, arithmetic operators (+, -, *, /, %, ^), comparison operators (==, !=, <, >, <=, >=), logical operators (and, or, not), conditionals (if/else), and 18 built-in functions (min, max, clamp, abs, floor, ceil, round, sqrt, pow, sin, cos, tan, log, log10, exp, lerp, sign).
 
 ---
 

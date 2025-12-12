@@ -48,6 +48,8 @@ pub const fleet = @import("fleet.zig");
 
 // Phase 9: Utility Systems
 pub const command = @import("command.zig");
+pub const dialog = @import("dialog.zig");
+pub const formula = @import("formula.zig");
 
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
