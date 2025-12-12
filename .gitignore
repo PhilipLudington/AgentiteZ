@@ -42,3 +42,6 @@ Temporary Items
 
 # Backup files
 *.bak
+
+# Local planning documents
+PLAN.md
