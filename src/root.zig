@@ -28,6 +28,11 @@ pub const blackboard = @import("blackboard.zig");
 pub const task_queue = @import("task_queue.zig");
 pub const personality = @import("personality.zig");
 
+// Phase 5: Strategy Advanced
+pub const tech = @import("tech.zig");
+pub const fog = @import("fog.zig");
+pub const victory = @import("victory.zig");
+
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
 comptime {

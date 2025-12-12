@@ -29,6 +29,9 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **Blackboard System** - Type-safe key-value storage for AI cross-system communication
 - **Task Queue** - Sequential task execution for AI agents with 19 task types
 - **AI Personality** - Trait-weighted decision scoring with 8 personality templates
+- **Tech Tree** - Research system with prerequisites (AND/OR), progress tracking, and unlocks
+- **Fog of War** - Per-player visibility with vision sources, line-of-sight, and shared vision
+- **Victory Conditions** - Multiple victory types with progress tracking and custom callbacks
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
@@ -121,6 +124,9 @@ The project has two main modules:
    - `blackboard` - Type-safe key-value storage for AI communication
    - `task_queue` - Sequential task execution for AI agents
    - `personality` - Trait-weighted decision scoring for AI
+   - `tech` - Technology tree with research and unlocks
+   - `fog` - Fog of war visibility system
+   - `victory` - Victory conditions and win state management
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -217,6 +223,15 @@ Sequential task execution with 19 task types (move, build, attack, etc.), lifecy
 
 ### AI Personality System (`src/personality.zig`) **[Full docs](docs/api/personality.md)**
 Trait-weighted decision scoring with 8 personality templates, threat/goal management, cooldowns, and situational modifiers.
+
+### Tech Tree System (`src/tech.zig`) **[Full docs](docs/api/tech.md)**
+Technology research with prerequisites (AND/OR logic), progress tracking, research queues, categories/eras, and unlock management.
+
+### Fog of War System (`src/fog.zig`) **[Full docs](docs/api/fog.md)**
+Per-player visibility with three states (unexplored/explored/visible), vision sources with range, line-of-sight blocking, and shared vision.
+
+### Victory Conditions (`src/victory.zig`) **[Full docs](docs/api/victory.md)**
+Multiple victory types with custom condition callbacks, progress tracking, player elimination, turn limits, and victory notifications.
 
 ---
 
