@@ -10,12 +10,33 @@ AgentiteZ is a custom game engine built with Zig featuring an Entity-Component-S
 
 ## Quick Navigation
 
-- **[ECS Module](ecs.md)** - Entity-Component-System architecture
-- **[UI Module](ui.md)** - Complete UI system with 10 widget types
-- **[Platform Module](platform.md)** - Input handling and platform abstraction
-- **[Renderer Module](renderer.md)** - Font atlas, viewport, and UI texture atlas
-- **[Config Module](config.md)** - TOML-based configuration loading
-- **[Storage Module](storage.md)** - Save/load game state system
+### Core Systems
+- **[Integration Guide](integration.md)** - SDL3, bgfx, stb_truetype integration patterns
+- **[Input System](input.md)** - Event-driven to immediate-mode input abstraction
+- **[Config System](config.md)** - TOML-based configuration loading
+- **[Storage System](storage.md)** - Save/load game state persistence
+- **[Font Atlas](font-atlas.md)** - HiDPI-aware bitmap font rendering
+
+### Phase 1: Foundation
+- **[Audio](audio.md)** - Sound effects and music playback
+- **[Camera](camera.md)** - 2D camera with zoom, follow, and shake
+- **[Animation](animation.md)** - Frame-based sprite animation with state machine
+
+### Phase 2: Spatial Systems
+- **[Tilemap](tilemap.md)** - Chunk-based tilemap with layers and collision
+- **[Spatial Index](spatial.md)** - Grid-based spatial hashing for proximity queries
+- **[Pathfinding](pathfinding.md)** - A* algorithm with diagonal movement and costs
+
+### Phase 3: Strategy Core
+- **[Event System](event.md)** - Generic pub/sub event dispatcher
+- **[Resource System](resource.md)** - Resource storage with rates and transfers
+- **[Modifier System](modifier.md)** - Stackable value modifiers with source tracking
+- **[Turn Manager](turn.md)** - Turn-based game flow with phases
+
+### Phase 4: AI Foundation
+- **[Blackboard](blackboard.md)** - Type-safe key-value storage for AI communication
+- **[Task Queue](task-queue.md)** - Sequential task execution for AI agents
+- **[AI Personality](personality.md)** - Trait-weighted decision scoring
 
 ## Key Features
 

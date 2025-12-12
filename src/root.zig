@@ -23,6 +23,11 @@ pub const resource = @import("resource.zig");
 pub const modifier = @import("modifier.zig");
 pub const turn = @import("turn.zig");
 
+// Phase 4: AI Foundation
+pub const blackboard = @import("blackboard.zig");
+pub const task_queue = @import("task_queue.zig");
+pub const personality = @import("personality.zig");
+
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
 comptime {
