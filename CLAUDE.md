@@ -12,6 +12,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **ECS Architecture** - Entity-Component-System with sparse-set storage, generation counters, and dependency ordering
 - **UI System** - 10 widget types with automatic layout, DPI scaling, and centralized Theme system
 - **Rendering** - SDL3 + bgfx for cross-platform graphics (Metal/Vulkan/DirectX/OpenGL)
+- **Audio System** - Sound effects and music playback with mixing, volume control, and 2D panning
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
@@ -91,6 +92,7 @@ The project has two main modules:
    - `platform` - Platform abstraction layer (input handling, etc.)
    - `data` - TOML parsing utilities (no external dependencies)
    - `config` - Configuration loaders for game content (rooms, items, NPCs)
+   - `audio` - Sound effects and music playback system
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -343,6 +345,83 @@ renderer_2d.setViewportOffset(viewport.x, viewport.y);
 - **RenderScale**: UI coordinate system with DPI awareness (high-level)
 - **Viewport**: bgfx rendering viewport with letterboxing (low-level)
 - Both work together for complete resolution-independent rendering
+
+### Audio System
+
+Sound effects and music playback built on SDL3 (`src/audio.zig`):
+
+**Features:**
+- **Sound effects** - Load and play WAV files with automatic format conversion
+- **Background music** - Looping music playback with pause/resume
+- **Volume control** - Master, sound effects, and music channel volumes
+- **2D panning** - Stereo positioning (-1.0 left to +1.0 right)
+- **Channel pooling** - 32 simultaneous sound channels
+- **Thread-safe** - Mutex-protected callback for audio mixing
+
+**Usage Pattern:**
+```zig
+const audio = @import("AgentiteZ").audio;
+
+// Initialize audio system
+var audio_system = try audio.AudioSystem.init(allocator);
+defer audio_system.deinit();
+
+// Load sounds
+var explosion = try audio_system.loadSound("sounds/explosion.wav");
+defer explosion.deinit();
+
+var music = try audio_system.loadMusic("music/theme.wav");
+defer music.deinit();
+
+// Play sound with options
+const handle = audio_system.playSoundEx(&explosion, .{
+    .volume = 0.8,
+    .pan = -0.5, // Slightly left
+    .loop = false,
+});
+
+// Play background music (loops by default)
+audio_system.playMusic(&music);
+
+// Control music
+audio_system.pauseMusic();
+audio_system.resumeMusic();
+audio_system.setMusicChannelVolume(0.7);
+
+// Control master volume
+audio_system.setMasterVolume(0.9);
+
+// Check if sound is still playing
+if (audio_system.isPlaying(handle)) {
+    // Still playing...
+}
+
+// Stop specific sound
+audio_system.stopSound(handle);
+
+// Stop all sounds
+audio_system.stopAllSounds();
+```
+
+**Volume Hierarchy:**
+- `master_volume` - Affects all audio output
+- `sound_volume` - Affects all sound effects (multiplied with master)
+- `global_music_volume` - Affects music playback (multiplied with master)
+- Per-sound `volume` - Individual sound volume (multiplied with sound_volume and master)
+- Per-music `music_volume` - Current track volume (multiplied with global_music_volume and master)
+
+**Data Structures:**
+- `AudioSystem` - Main system managing channels, mixing, and playback
+- `Sound` - Loaded sound effect (converted to float32 stereo)
+- `Music` - Loaded music track (converted to float32 stereo)
+- `SoundHandle` - Handle to a playing sound instance
+- `PlayOptions` - Volume, pan, and loop settings
+
+**Technical Details:**
+- Output format: 48kHz, stereo, float32
+- Audio is mixed in a callback using SDL3's audio stream API
+- All input formats automatically converted to device format
+- Channel stealing when all 32 channels are in use
 
 ### Input State Abstraction
 

@@ -12,11 +12,17 @@ pub const data = @import("data.zig");
 pub const config = @import("config.zig");
 pub const storage = @import("storage.zig");
 pub const renderer = @import("renderer.zig");
+pub const audio = @import("audio.zig");
 
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
 comptime {
     _ = stb_truetype;
+}
+
+// Include test files for module testing
+test {
+    _ = @import("audio_test.zig");
 }
 
 pub fn bufferedPrint() !void {
