@@ -56,6 +56,7 @@ pub const prefab = @import("prefab.zig");
 pub const scene = @import("scene.zig");
 pub const transform = @import("transform.zig");
 pub const asset = @import("asset.zig");
+pub const async_loader = @import("async_loader.zig");
 
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.

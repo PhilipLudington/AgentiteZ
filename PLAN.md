@@ -32,7 +32,7 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
   - Asset unloading with dependency tracking
   - Support for: textures, sounds, fonts, scenes, prefabs
 
-- [ ] **Async Loading System** - Background resource loading
+- [x] **Async Loading System** - Background resource loading
   - Thread pool for I/O operations
   - Load priority system (critical, high, normal, low)
   - Progress callbacks and completion events
