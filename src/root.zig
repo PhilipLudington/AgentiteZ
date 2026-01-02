@@ -68,6 +68,7 @@ comptime {
 // Include test files for module testing
 test {
     _ = @import("audio_test.zig");
+    _ = @import("camera3d.zig");
 }
 
 pub fn bufferedPrint() !void {
