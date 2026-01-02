@@ -201,6 +201,9 @@ fn createExecutable(
     });
     exe.addIncludePath(b.path("external/bx/include"));
     exe.addIncludePath(b.path("external/bx/3rdparty"));
+    if (is_macos) {
+        exe.addIncludePath(b.path("external/bx/include/compat/osx"));
+    }
 
     // Build minimal bimg (image library)
     exe.addCSourceFiles(.{
