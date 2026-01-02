@@ -36,6 +36,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **Formula Engine** - Runtime expression parsing with variables, operators, and built-in functions
 - **Prefab System** - Entity templates with TOML definitions, registry, inheritance, and spawning with overrides
 - **Scene System** - Level/scene loading with entity definitions, state machine, and asset tracking
+- **Transform System** - 2D transforms with parent-child hierarchy, local/world coordinates, and dirty flag optimization
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
@@ -143,6 +144,7 @@ The project has two main modules:
    - `formula` - Expression parsing and evaluation with variables
    - `prefab` - Entity templates with registry, inheritance, and spawning
    - `scene` - Level/scene loading with state machine and entity lifetime management
+   - `transform` - 2D transform components with parent-child hierarchy and world transform caching
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -284,6 +286,9 @@ Entity templates with TOML definitions, prefab registry for caching, component t
 
 ### Scene System (`src/scene.zig`) **[Full docs](docs/api/scene.md)**
 Level/scene loading and management with TOML scene definitions, entity instances from prefabs, scene state machine (inactive/loading/active/unloading), asset reference tracking, entity lifetime tied to scene, state change callbacks, and scene transitions.
+
+### Transform System (`src/transform.zig`) **[Full docs](docs/api/transform.md)**
+2D transform components with position, rotation, scale, parent-child hierarchy, local/world coordinate transforms, Matrix2D for affine transformations, TransformHierarchy manager with dirty flag optimization for efficient world transform calculation.
 
 ---
 

@@ -18,7 +18,7 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
   - Asset reference tracking per scene
   - Entity lifetime tied to scene
 
-- [ ] **Transform Component** - Entity positioning with hierarchy
+- [x] **Transform Component** - Entity positioning with hierarchy
   - Position, rotation, scale components
   - Parent-child transform hierarchy
   - Local vs world coordinate transforms

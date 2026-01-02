@@ -54,6 +54,7 @@ pub const formula = @import("formula.zig");
 // Phase 10: Core Infrastructure
 pub const prefab = @import("prefab.zig");
 pub const scene = @import("scene.zig");
+pub const transform = @import("transform.zig");
 
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
