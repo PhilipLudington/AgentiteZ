@@ -37,6 +37,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **Prefab System** - Entity templates with TOML definitions, registry, inheritance, and spawning with overrides
 - **Scene System** - Level/scene loading with entity definitions, state machine, and asset tracking
 - **Transform System** - 2D transforms with parent-child hierarchy, local/world coordinates, and dirty flag optimization
+- **Asset System** - Unified resource management with type-safe handles, reference counting, and dependency tracking
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
@@ -145,6 +146,7 @@ The project has two main modules:
    - `prefab` - Entity templates with registry, inheritance, and spawning
    - `scene` - Level/scene loading with state machine and entity lifetime management
    - `transform` - 2D transform components with parent-child hierarchy and world transform caching
+   - `asset` - Unified resource management with type-safe handles, reference counting, and dependency tracking
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -289,6 +291,9 @@ Level/scene loading and management with TOML scene definitions, entity instances
 
 ### Transform System (`src/transform.zig`) **[Full docs](docs/api/transform.md)**
 2D transform components with position, rotation, scale, parent-child hierarchy, local/world coordinate transforms, Matrix2D for affine transformations, TransformHierarchy manager with dirty flag optimization for efficient world transform calculation.
+
+### Asset System (`src/asset.zig`) **[Full docs](docs/api/asset.md)**
+Unified resource management with type-safe handles (generation counters for dangling reference detection), reference counting for automatic unloading, loader abstraction for custom asset types, dependency tracking between assets, and asset bundles for batch loading.
 
 ---
 
