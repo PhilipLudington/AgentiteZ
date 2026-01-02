@@ -11,7 +11,7 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
   - Spawning with component overrides
   - Hierarchical prefabs (parent-child relationships)
 
-- [ ] **Scene System** - Level/scene loading and management
+- [x] **Scene System** - Level/scene loading and management
   - Scene file format with entity definitions
   - Scene manager for loading/unloading scenes
   - Scene state machine (loading, active, unloading)
