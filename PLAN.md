@@ -49,11 +49,12 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
   - Configurable scaling modes (fit, fill, stretch)
   Implemented in `src/renderer/viewport.zig` with VirtualResolution manager
 
-- [ ] **3D Camera** - Orbital/perspective camera
+- [x] **3D Camera** - Orbital/perspective camera
   - Orbital camera controls (yaw, pitch, distance)
   - Perspective projection
   - Frustum culling helpers
   - Smooth interpolation and constraints
+  Implemented in `src/camera3d.zig` with 25 tests
 
 - [ ] **Gizmo System** - Debug drawing and transform handles
   - Line/circle/rectangle primitives

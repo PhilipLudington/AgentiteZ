@@ -14,6 +14,7 @@ pub const storage = @import("storage.zig");
 pub const renderer = @import("renderer.zig");
 pub const audio = @import("audio.zig");
 pub const camera = @import("camera.zig");
+pub const camera3d = @import("camera3d.zig");
 pub const animation = @import("animation.zig");
 pub const tilemap = @import("tilemap.zig");
 pub const spatial = @import("spatial.zig");
