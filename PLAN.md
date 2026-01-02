@@ -42,12 +42,12 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
 ## Phase 2: Graphics Enhancements
 
 ### Rendering Systems
-- [ ] **Virtual Resolution System** - Resolution-independent rendering
+- [x] **Virtual Resolution System** - Resolution-independent rendering
   - Fixed coordinate space (1920x1080 default)
   - Automatic letterboxing/pillarboxing
   - Mouse coordinate transformation
   - Configurable scaling modes (fit, fill, stretch)
-  Partial support exists in viewport.zig, needs enhancement
+  Implemented in `src/renderer/viewport.zig` with VirtualResolution manager
 
 - [ ] **3D Camera** - Orbital/perspective camera
   - Orbital camera controls (yaw, pitch, distance)

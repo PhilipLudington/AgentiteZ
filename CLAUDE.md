@@ -39,7 +39,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **Transform System** - 2D transforms with parent-child hierarchy, local/world coordinates, and dirty flag optimization
 - **Asset System** - Unified resource management with type-safe handles, reference counting, and dependency tracking
 - **Async Loading** - Background resource loading with thread pool, priorities, progress callbacks, and cancellation
-- **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
+- **Virtual Resolution** - Fixed 1920x1080 coordinate space with fit/fill/stretch modes and mouse coordinate transformation
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
 
