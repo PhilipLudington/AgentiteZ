@@ -18,6 +18,7 @@ const selection = @import("widgets/selection.zig");
 const display = @import("widgets/display.zig");
 const chart_mod = @import("widgets/chart.zig");
 const rich_text_mod = @import("widgets/rich_text.zig");
+const table_mod = @import("widgets/table.zig");
 
 // ============================================================================
 // Re-export all widget functions
@@ -79,3 +80,10 @@ pub const ParsedRichText = rich_text_mod.ParsedRichText;
 pub const parseMarkup = rich_text_mod.parseMarkup;
 pub const richText = rich_text_mod.richText;
 pub const richTextAuto = rich_text_mod.richTextAuto;
+
+// Table widgets (tabular data display)
+pub const Alignment = table_mod.Alignment;
+pub const TableColumn = table_mod.TableColumn;
+pub const TableState = table_mod.TableState;
+pub const table = table_mod.table;
+pub const tableAuto = table_mod.tableAuto;

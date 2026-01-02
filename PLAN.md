@@ -71,11 +71,12 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
   Current font system is bitmap-based
 
 ### Debug Visualization
-- [ ] **Line Renderer** - Debug line drawing
+- [x] **Line Renderer** - Debug line drawing
   - Batched line rendering
   - Colors and line widths
   - Screen-space and world-space lines
   - Common shapes (boxes, circles, arrows)
+  Covered by Gizmo System in `src/gizmo.zig`
 
 ## Phase 3: UI System Enhancements
 
@@ -96,12 +97,13 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
   - Nested tag support
   Implemented in `src/ui/widgets/rich_text.zig` with 9 tests
 
-- [ ] **Table Widget** - Tabular data display
+- [x] **Table Widget** - Tabular data display
   - Column headers with sorting
   - Row selection (single/multi)
   - Cell customization
   - Scrolling for large datasets
   - Column resizing
+  Implemented in `src/ui/widgets/table.zig` with 6 tests
 
 - [ ] **Color Picker Widget** - Color selection
   - HSV/RGB color models
