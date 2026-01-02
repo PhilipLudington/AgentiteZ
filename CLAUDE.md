@@ -42,6 +42,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **Asset System** - Unified resource management with type-safe handles, reference counting, and dependency tracking
 - **Async Loading** - Background resource loading with thread pool, priorities, progress callbacks, and cancellation
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with fit/fill/stretch modes and mouse coordinate transformation
+- **Tween System** - UI animation with 30+ easing functions, sequence/parallel composition, and callbacks
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
 
@@ -155,6 +156,7 @@ The project has two main modules:
    - `transform` - 2D transform components with parent-child hierarchy and world transform caching
    - `asset` - Unified resource management with type-safe handles, reference counting, and dependency tracking
    - `async_loader` - Background resource loading with thread pool, priorities, and cancellation
+   - `tween` - UI animation with easing functions, property tweening, and composition
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -311,6 +313,9 @@ Unified resource management with type-safe handles (generation counters for dang
 
 ### Async Loading System (`src/async_loader.zig`) **[Full docs](docs/api/async-loader.md)**
 Background resource loading with thread pool, load priorities (critical/high/normal/low), progress callbacks, completion events on main thread for GPU finalization, cancellation support, and batch loading helper with aggregate progress tracking.
+
+### Tween System (`src/tween.zig`)
+UI animation system with 30+ easing functions (linear, quad, cubic, sine, expo, circ, back, elastic, bounce), property animation for floats/Vec2/Color, sequence and parallel composition via TweenSequence/TweenGroup, callbacks (on_start, on_update, on_complete), yoyo mode, repeat support, and delay. Managed via TweenManager for automatic cleanup.
 
 ---
 

@@ -60,6 +60,9 @@ pub const transform = @import("transform.zig");
 pub const asset = @import("asset.zig");
 pub const async_loader = @import("async_loader.zig");
 
+// Phase 11: UI Animation
+pub const tween = @import("tween.zig");
+
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
 comptime {

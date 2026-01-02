@@ -124,11 +124,13 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
   Implemented in `src/ui/widgets/notification.zig` with 11 tests
 
 ### UI Features
-- [ ] **Tween System** - UI animation
-  - Easing functions (ease-in, ease-out, bounce, etc.)
+- [x] **Tween System** - UI animation
+  - Easing functions (30+ including ease-in, ease-out, bounce, elastic, back)
   - Property animation (position, size, color, alpha)
   - Sequence and parallel composition
-  - Callbacks on completion
+  - Callbacks on completion (on_start, on_update, on_complete)
+  - Yoyo mode and repeat support
+  Implemented in `src/tween.zig` with 25 tests
 
 - [ ] **View Model Pattern** - MVVM data binding
   - Observable properties
