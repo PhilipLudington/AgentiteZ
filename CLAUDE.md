@@ -34,6 +34,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **Command Queue** - Command pattern with validation, replay history, batching, and statistics
 - **Dialog System** - Branching conversation trees with conditional responses and state tracking
 - **Formula Engine** - Runtime expression parsing with variables, operators, and built-in functions
+- **Prefab System** - Entity templates with TOML definitions, registry, inheritance, and spawning with overrides
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with automatic aspect-ratio preservation
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
@@ -139,6 +140,7 @@ The project has two main modules:
    - `command` - Command queue with validation, replay history, and batching
    - `dialog` - Dialog system with branching conversations and conditions
    - `formula` - Expression parsing and evaluation with variables
+   - `prefab` - Entity templates with registry, inheritance, and spawning
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -274,6 +276,9 @@ Branching conversation trees with dialog nodes, conditional options, state track
 
 ### Formula Engine (`src/formula.zig`)
 Runtime expression parsing and evaluation with variables, arithmetic operators (+, -, *, /, %, ^), comparison operators (==, !=, <, >, <=, >=), logical operators (and, or, not), conditionals (if/else), and 18 built-in functions (min, max, clamp, abs, floor, ceil, round, sqrt, pow, sin, cos, tan, log, log10, exp, lerp, sign).
+
+### Prefab System (`src/prefab.zig`) **[Full docs](docs/api/prefab.md)**
+Entity templates with TOML definitions, prefab registry for caching, component type registration, spawning with overrides, and hierarchical inheritance (parent-child composition).
 
 ---
 

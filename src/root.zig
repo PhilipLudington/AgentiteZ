@@ -51,6 +51,9 @@ pub const command = @import("command.zig");
 pub const dialog = @import("dialog.zig");
 pub const formula = @import("formula.zig");
 
+// Phase 10: Core Infrastructure
+pub const prefab = @import("prefab.zig");
+
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
 comptime {
