@@ -15,6 +15,7 @@ pub const renderer = @import("renderer.zig");
 pub const audio = @import("audio.zig");
 pub const camera = @import("camera.zig");
 pub const camera3d = @import("camera3d.zig");
+pub const gizmo = @import("gizmo.zig");
 pub const animation = @import("animation.zig");
 pub const tilemap = @import("tilemap.zig");
 pub const spatial = @import("spatial.zig");
@@ -69,6 +70,7 @@ comptime {
 test {
     _ = @import("audio_test.zig");
     _ = @import("camera3d.zig");
+    _ = @import("gizmo.zig");
 }
 
 pub fn bufferedPrint() !void {

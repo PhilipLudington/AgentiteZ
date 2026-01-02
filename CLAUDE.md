@@ -15,6 +15,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **Audio System** - Sound effects and music playback with mixing, volume control, and 2D panning
 - **Camera System** - 2D camera with zoom, rotation, smooth follow, bounds, and screen shake
 - **3D Camera** - Orbital camera with perspective projection, frustum culling, and smooth interpolation
+- **Gizmo System** - Debug line drawing and transform handles with world/screen space modes
 - **Animation System** - Frame-based sprite animation with clips, events, and state machine
 - **Tilemap System** - Chunk-based tile storage with multiple layers, collision, and auto-tiling
 - **Spatial Index** - Grid-based spatial hashing for O(1) entity lookup and fast proximity queries
@@ -122,6 +123,7 @@ The project has two main modules:
    - `audio` - Sound effects and music playback system
    - `camera` - 2D camera system with zoom, follow, and shake
    - `camera3d` - 3D orbital camera with perspective projection and frustum culling
+   - `gizmo` - Debug drawing primitives and transform handles
    - `animation` - Frame-based sprite animation with state machine
    - `tilemap` - Chunk-based tilemap with layers, collision, and auto-tiling
    - `spatial` - Grid-based spatial indexing for fast proximity queries
@@ -217,6 +219,9 @@ Sound effects and music playback with 32 channels, volume control, 2D panning, a
 
 ### 3D Camera System (`src/camera3d.zig`)
 Orbital camera with yaw/pitch/distance controls, perspective projection, frustum culling (point/sphere/AABB tests), smooth interpolation with configurable smoothing, pitch/yaw/distance constraints, and view/projection matrix generation for bgfx.
+
+### Gizmo System (`src/gizmo.zig`)
+Debug drawing and transform handles: line/arrow/ray primitives, circles and spheres, AABB and box wireframes, grid overlay with axis coloring, transform handles (translate/rotate/scale), frustum visualization, world-space and screen-space rendering modes, batched line generation for efficient rendering.
 
 ### Animation System (`src/animation.zig`) **[Full docs](docs/api/animation.md)**
 Frame-based sprite animation with clips, playback controls, frame events, state machine, and blend transitions.

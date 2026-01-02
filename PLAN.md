@@ -56,11 +56,12 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
   - Smooth interpolation and constraints
   Implemented in `src/camera3d.zig` with 25 tests
 
-- [ ] **Gizmo System** - Debug drawing and transform handles
+- [x] **Gizmo System** - Debug drawing and transform handles
   - Line/circle/rectangle primitives
   - Transform handles (translate, rotate, scale)
   - Grid overlay rendering
   - Screen-space vs world-space modes
+  Implemented in `src/gizmo.zig` with 21 tests
 
 - [ ] **MSDF Text Rendering** - High-quality scalable text
   - Multi-channel signed distance field fonts
