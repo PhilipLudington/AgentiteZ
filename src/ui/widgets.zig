@@ -17,6 +17,7 @@ const input = @import("widgets/input.zig");
 const selection = @import("widgets/selection.zig");
 const display = @import("widgets/display.zig");
 const chart_mod = @import("widgets/chart.zig");
+const rich_text_mod = @import("widgets/rich_text.zig");
 
 // ============================================================================
 // Re-export all widget functions
@@ -69,3 +70,12 @@ pub const barChart = chart_mod.barChart;
 pub const barChartAuto = chart_mod.barChartAuto;
 pub const pieChart = chart_mod.pieChart;
 pub const pieChartAuto = chart_mod.pieChartAuto;
+
+// Rich text widgets (formatted text with markup)
+pub const TextStyle = rich_text_mod.TextStyle;
+pub const TextSpan = rich_text_mod.TextSpan;
+pub const RichTextOptions = rich_text_mod.RichTextOptions;
+pub const ParsedRichText = rich_text_mod.ParsedRichText;
+pub const parseMarkup = rich_text_mod.parseMarkup;
+pub const richText = rich_text_mod.richText;
+pub const richTextAuto = rich_text_mod.richTextAuto;

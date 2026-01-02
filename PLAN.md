@@ -86,12 +86,13 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
   - Configurable colors and colorblind-friendly default palette
   Implemented in `src/ui/widgets/chart.zig` with 5 tests
 
-- [ ] **RichText Widget** - Formatted text display
-  - Inline bold, italic, underline
-  - Text colors and backgrounds
-  - Inline images/icons
-  - Links with click handling
-  - Simple markup parser
+- [x] **RichText Widget** - Formatted text display
+  - Inline bold, italic, underline via BBCode-style markup
+  - Text colors ([c=#RRGGBB]) and backgrounds ([bg=#RRGGBB])
+  - Links with click handling and hover effects
+  - Word wrapping with configurable max width
+  - Nested tag support
+  Implemented in `src/ui/widgets/rich_text.zig` with 9 tests
 
 - [ ] **Table Widget** - Tabular data display
   - Column headers with sorting

@@ -10,7 +10,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 
 **Core Features:**
 - **ECS Architecture** - Entity-Component-System with sparse-set storage, generation counters, and dependency ordering
-- **UI System** - 11 widget types with automatic layout, DPI scaling, and centralized Theme system
+- **UI System** - 12 widget types with automatic layout, DPI scaling, and centralized Theme system
 - **Rendering** - SDL3 + bgfx for cross-platform graphics (Metal/Vulkan/DirectX/OpenGL)
 - **Audio System** - Sound effects and music playback with mixing, volume control, and 2D panning
 - **Camera System** - 2D camera with zoom, rotation, smooth follow, bounds, and screen shake
@@ -316,6 +316,9 @@ HiDPI-aware bitmap font rendering with pre-baked glyph atlas, fast text measurem
 
 ### Chart Widget (`src/ui/widgets/chart.zig`) **[Full docs](docs/api/chart.md)**
 Data visualization with line charts (multiple series, markers), bar charts (grouped bars), and pie charts (percentage legends). Includes auto-scaling, grid lines, colorblind-friendly palette, and both manual/auto-layout.
+
+### Rich Text Widget (`src/ui/widgets/rich_text.zig`) **[Full docs](docs/api/rich-text.md)**
+Formatted text display with BBCode-style markup supporting bold, italic, underline, custom text/background colors, and clickable links with hover effects. Includes word wrapping, nested tag support, and link click detection.
 
 ## Important Notes
 
