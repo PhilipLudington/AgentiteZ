@@ -78,12 +78,13 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
 ## Phase 3: UI System Enhancements
 
 ### New Widgets
-- [ ] **Chart Widget** - Data visualization
+- [x] **Chart Widget** - Data visualization
   - Line charts with multiple series
-  - Bar charts (horizontal/vertical)
-  - Pie/donut charts
+  - Bar charts (vertical, grouped for multi-series)
+  - Pie charts with percentage legends
   - Axis labels and legends
-  - Configurable colors and styles
+  - Configurable colors and colorblind-friendly default palette
+  Implemented in `src/ui/widgets/chart.zig` with 5 tests
 
 - [ ] **RichText Widget** - Formatted text display
   - Inline bold, italic, underline

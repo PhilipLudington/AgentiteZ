@@ -253,6 +253,16 @@ pub const Theme = struct {
     // Label colors
     label_color: Color,          // Generic label text
 
+    // Chart colors
+    chart_bg: Color,             // Chart background
+    chart_border: Color,         // Chart border
+    chart_grid: Color,           // Grid lines
+    chart_axis: Color,           // Axis lines
+    chart_line_1: Color,         // Series 1 color
+    chart_line_2: Color,         // Series 2 color
+    chart_line_3: Color,         // Series 3 color
+    chart_line_4: Color,         // Series 4 color
+
     /// Create default Imperial salvaged tech theme
     pub fn imperial() Theme {
         return .{
@@ -337,6 +347,15 @@ pub const Theme = struct {
             .tab_text_inactive = Color.rgb(80, 80, 80),
 
             .label_color = Color.white,
+
+            .chart_bg = Color.panel_bg,
+            .chart_border = Color.panel_border,
+            .chart_grid = Color.rgb(60, 65, 75),
+            .chart_axis = Color.rgb(100, 110, 120),
+            .chart_line_1 = Color.tech_cyan,
+            .chart_line_2 = Color.warning_amber,
+            .chart_line_3 = Color.dim_green,
+            .chart_line_4 = Color.faded_purple,
         };
     }
 };
