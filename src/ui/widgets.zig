@@ -19,6 +19,7 @@ const display = @import("widgets/display.zig");
 const chart_mod = @import("widgets/chart.zig");
 const rich_text_mod = @import("widgets/rich_text.zig");
 const table_mod = @import("widgets/table.zig");
+const color_picker_mod = @import("widgets/color_picker.zig");
 
 // ============================================================================
 // Re-export all widget functions
@@ -87,3 +88,18 @@ pub const TableColumn = table_mod.TableColumn;
 pub const TableState = table_mod.TableState;
 pub const table = table_mod.table;
 pub const tableAuto = table_mod.tableAuto;
+
+// Color picker widgets (HSV/RGB color selection)
+pub const Hsv = color_picker_mod.Hsv;
+pub const hsvToRgb = color_picker_mod.hsvToRgb;
+pub const rgbToHsv = color_picker_mod.rgbToHsv;
+pub const parseHex = color_picker_mod.parseHex;
+pub const formatHex = color_picker_mod.formatHex;
+pub const ColorPickerState = color_picker_mod.ColorPickerState;
+pub const ColorPickerOptions = color_picker_mod.ColorPickerOptions;
+pub const default_presets = color_picker_mod.default_presets;
+pub const colorPicker = color_picker_mod.colorPicker;
+pub const colorPickerAuto = color_picker_mod.colorPickerAuto;
+pub const CompactColorPickerState = color_picker_mod.CompactColorPickerState;
+pub const compactColorPicker = color_picker_mod.compactColorPicker;
+pub const compactColorPickerAuto = color_picker_mod.compactColorPickerAuto;

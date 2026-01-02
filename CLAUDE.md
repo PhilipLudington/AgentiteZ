@@ -10,7 +10,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 
 **Core Features:**
 - **ECS Architecture** - Entity-Component-System with sparse-set storage, generation counters, and dependency ordering
-- **UI System** - 12 widget types with automatic layout, DPI scaling, and centralized Theme system
+- **UI System** - 13 widget types with automatic layout, DPI scaling, and centralized Theme system
 - **Rendering** - SDL3 + bgfx for cross-platform graphics (Metal/Vulkan/DirectX/OpenGL)
 - **Audio System** - Sound effects and music playback with mixing, volume control, and 2D panning
 - **Camera System** - 2D camera with zoom, rotation, smooth follow, bounds, and screen shake
@@ -47,7 +47,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 
 **Design Philosophy:** Framework-agnostic engine layer that any game can build upon, not tied to specific game genres.
 
-**Test Coverage:** 76+ comprehensive tests across all major systems (ECS, UI, rendering, config, input)
+**Test Coverage:** 85+ comprehensive tests across all major systems (ECS, UI, rendering, config, input)
 
 ## Build Commands
 
@@ -329,6 +329,9 @@ Data visualization with line charts (multiple series, markers), bar charts (grou
 
 ### Rich Text Widget (`src/ui/widgets/rich_text.zig`) **[Full docs](docs/api/rich-text.md)**
 Formatted text display with BBCode-style markup supporting bold, italic, underline, custom text/background colors, and clickable links with hover effects. Includes word wrapping, nested tag support, and link click detection.
+
+### Color Picker Widget (`src/ui/widgets/color_picker.zig`)
+HSV/RGB color selection with saturation-value gradient picker, hue slider, optional alpha channel, and preset color swatches. Includes hex color parsing/formatting, RGB display, and a compact variant (button + popup). Full widget with 9 tests.
 
 ## Important Notes
 

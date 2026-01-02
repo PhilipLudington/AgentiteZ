@@ -105,11 +105,14 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
   - Column resizing
   Implemented in `src/ui/widgets/table.zig` with 6 tests
 
-- [ ] **Color Picker Widget** - Color selection
-  - HSV/RGB color models
-  - Color wheel or gradient picker
-  - Alpha channel support
-  - Color presets/swatches
+- [x] **Color Picker Widget** - Color selection
+  - HSV/RGB color models with Hsv struct and conversion functions
+  - Saturation-Value gradient picker with hue slider
+  - Alpha channel support with transparency visualization
+  - Color presets/swatches (15 default colors)
+  - Hex color parsing and formatting
+  - Compact color picker variant (button + popup)
+  Implemented in `src/ui/widgets/color_picker.zig` with 9 tests
 
 - [ ] **Notification System** - Toast notifications
   - Position options (corners, center)
