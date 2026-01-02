@@ -5,5 +5,12 @@
       "resultsFile": ".test-results.json",
       "command": "./scripts/run-tests.sh"
     }
+  ],
+  "builds": [
+    {
+      "name": "Debug Build",
+      "resultsFile": ".build-results.json",
+      "command": "./scripts/build.sh"
+    }
   ]
 }

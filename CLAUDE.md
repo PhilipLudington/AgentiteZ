@@ -52,8 +52,11 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 ## Build Commands
 
 ```bash
-# Build the project
-zig build
+# Build the project (use wrapper for GitStat integration)
+./scripts/build.sh
+
+# Run tests (use wrapper for GitStat integration)
+./scripts/run-tests.sh
 
 # Build and run main demo (full UI showcase)
 zig build run
@@ -61,12 +64,11 @@ zig build run
 # Run minimal example (simple window, ~140 lines)
 zig build run-minimal
 
-# Run tests
-zig build test
-
 # Run executable directly (after building)
 ./zig-out/bin/AgentiteZ
 ```
+
+**Important:** Always use `./scripts/build.sh` and `./scripts/run-tests.sh` instead of `zig build` or `zig build test` directly. The wrapper scripts write results to JSON files for GitStat integration.
 
 ## Examples
 
