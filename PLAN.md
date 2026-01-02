@@ -114,11 +114,14 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
   - Compact color picker variant (button + popup)
   Implemented in `src/ui/widgets/color_picker.zig` with 9 tests
 
-- [ ] **Notification System** - Toast notifications
-  - Position options (corners, center)
-  - Auto-dismiss with configurable duration
-  - Notification types (info, success, warning, error)
-  - Queue management for multiple notifications
+- [x] **Notification System** - Toast notifications
+  - Position options (9 positions: corners, edges, center)
+  - Auto-dismiss with configurable duration per notification type
+  - Notification types (info, success, warning, error) with distinct colors
+  - Queue management for up to 8 simultaneous notifications
+  - Fade-in/fade-out animations with configurable durations
+  - Optional close button and click-to-dismiss
+  Implemented in `src/ui/widgets/notification.zig` with 11 tests
 
 ### UI Features
 - [ ] **Tween System** - UI animation

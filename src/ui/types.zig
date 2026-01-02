@@ -263,6 +263,14 @@ pub const Theme = struct {
     chart_line_3: Color,         // Series 3 color
     chart_line_4: Color,         // Series 4 color
 
+    // Notification colors
+    notification_bg: Color,           // Notification background
+    notification_border: Color,       // Notification border
+    notification_text: Color,         // Notification message text
+    notification_title: Color,        // Notification title text
+    notification_close: Color,        // Close button color
+    notification_close_hover: Color,  // Close button hover color
+
     /// Create default Imperial salvaged tech theme
     pub fn imperial() Theme {
         return .{
@@ -356,6 +364,13 @@ pub const Theme = struct {
             .chart_line_2 = Color.warning_amber,
             .chart_line_3 = Color.dim_green,
             .chart_line_4 = Color.faded_purple,
+
+            .notification_bg = Color.panel_bg,
+            .notification_border = Color.panel_border,
+            .notification_text = Color.worn_white,
+            .notification_title = Color.imperial_gold,
+            .notification_close = Color.oxidized_copper,
+            .notification_close_hover = Color.worn_white,
         };
     }
 };

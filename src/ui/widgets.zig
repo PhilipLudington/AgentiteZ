@@ -20,6 +20,7 @@ const chart_mod = @import("widgets/chart.zig");
 const rich_text_mod = @import("widgets/rich_text.zig");
 const table_mod = @import("widgets/table.zig");
 const color_picker_mod = @import("widgets/color_picker.zig");
+const notification_mod = @import("widgets/notification.zig");
 
 // ============================================================================
 // Re-export all widget functions
@@ -103,3 +104,14 @@ pub const colorPickerAuto = color_picker_mod.colorPickerAuto;
 pub const CompactColorPickerState = color_picker_mod.CompactColorPickerState;
 pub const compactColorPicker = color_picker_mod.compactColorPicker;
 pub const compactColorPickerAuto = color_picker_mod.compactColorPickerAuto;
+
+// Notification widgets (toast notifications)
+pub const NotificationType = notification_mod.NotificationType;
+pub const NotificationPosition = notification_mod.NotificationPosition;
+pub const AnimationPhase = notification_mod.AnimationPhase;
+pub const Notification = notification_mod.Notification;
+pub const NotificationOptions = notification_mod.NotificationOptions;
+pub const NotificationDisplayOptions = notification_mod.NotificationDisplayOptions;
+pub const NotificationManager = notification_mod.NotificationManager;
+pub const renderNotifications = notification_mod.renderNotifications;
+pub const MAX_NOTIFICATIONS = notification_mod.MAX_NOTIFICATIONS;
