@@ -92,6 +92,10 @@ pub fn build(b: *std.Build) void {
     const ecs_inspector_demo_exe = createExecutable(b, target, optimize, mod, "ecs_inspector_demo", "examples/ecs_inspector_demo.zig", is_macos, &bgfx_flags);
     b.installArtifact(ecs_inspector_demo_exe);
 
+    // Game Speed Demo - demonstrates game speed control with pause/speed presets
+    const game_speed_demo_exe = createExecutable(b, target, optimize, mod, "game_speed_demo", "examples/game_speed_demo.zig", is_macos, &bgfx_flags);
+    b.installArtifact(game_speed_demo_exe);
+
     // === Run Steps ===
 
     // Run step for basic demo
@@ -141,6 +145,12 @@ pub fn build(b: *std.Build) void {
     const run_inspector_cmd = b.addRunArtifact(ecs_inspector_demo_exe);
     run_inspector_cmd.step.dependOn(b.getInstallStep());
     run_inspector_step.dependOn(&run_inspector_cmd.step);
+
+    // Run step for Game Speed demo
+    const run_speed_step = b.step("run-speed", "Run the Game Speed demo (pause, speed control)");
+    const run_speed_cmd = b.addRunArtifact(game_speed_demo_exe);
+    run_speed_cmd.step.dependOn(b.getInstallStep());
+    run_speed_step.dependOn(&run_speed_cmd.step);
 
     // === Tests ===
 

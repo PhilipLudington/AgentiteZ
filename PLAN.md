@@ -232,11 +232,13 @@ These systems extend the existing strategy game framework.
   - Resource requirements
 
 ### Game Flow
-- [ ] **Game Speed System** - Timing control
-  - Multiple speed settings
-  - Pause functionality
-  - Per-system speed scaling
-  - UI for speed control
+- [x] **Game Speed System** - Timing control
+  - Multiple speed settings (pause, 0.5x, 1x, 2x, 4x)
+  - Pause functionality with resume to previous speed
+  - Per-system speed scaling (game delta vs real delta)
+  - SpeedControl UI widget with preset buttons
+  Implemented in `src/game_speed.zig` with 25 tests
+  SpeedControl widget in `src/ui/widgets/speed_control.zig`
 
 - [ ] **History System** - Game history tracking
   - Event logging with timestamps
@@ -257,6 +259,85 @@ These systems extend the existing strategy game framework.
   - Component filters (with, without, optional)
   - Query caching
   - Iteration optimizations
+
+---
+
+## Phase 7: Demo/Example Coverage
+
+These features have been implemented but lack dedicated demos or examples.
+
+### UI Widget Demos
+- [ ] **Chart Widget Demo** - Demonstrate line/bar/pie charts with live data
+  - Multiple series with dynamic updates
+  - All chart types in one view
+  - Interactive legend and tooltips
+
+- [ ] **Rich Text Widget Demo** - BBCode markup showcase
+  - Bold, italic, underline combinations
+  - Color and background styling
+  - Clickable links with callback handling
+
+- [ ] **Color Picker Demo** - HSV/RGB color selection
+  - Full color picker with all controls
+  - Compact picker variant
+  - Preset swatches and hex input
+
+- [ ] **Table Widget Demo** - Tabular data display
+  - Column sorting and resizing
+  - Row selection (single/multi)
+  - Scrolling with large datasets
+
+- [ ] **Notification System Demo** - Toast notifications showcase
+  - All notification types (info, success, warning, error)
+  - Different positions (9 positions)
+  - Auto-dismiss and manual close
+
+- [ ] **Tween System Demo** - UI animation showcase
+  - All 30+ easing functions visualized
+  - Property tweening (position, size, color)
+  - Sequence and parallel composition
+
+- [ ] **ViewModel Pattern Demo** - MVVM data binding
+  - Observable properties with UI sync
+  - Computed properties
+  - Two-way binding for multiple widgets
+
+### Graphics/Rendering Demos
+- [ ] **MSDF Text Demo** - Scalable text rendering
+  - Text at various sizes showing quality
+  - Comparison with bitmap font rendering
+  - Runtime atlas generation
+
+- [ ] **Gizmo System Demo** - Debug drawing primitives
+  - Line/circle/rectangle drawing
+  - Transform handles (translate/rotate/scale)
+  - Grid overlay and frustum visualization
+
+- [ ] **3D Camera Demo** - Orbital camera controls
+  - Mouse-controlled orbit with yaw/pitch
+  - Zoom and smooth interpolation
+  - Frustum culling visualization
+
+### System Demos
+- [ ] **Asset System Demo** - Resource management
+  - Asset loading with reference counting
+  - Dependency tracking between assets
+  - Asset handle usage patterns
+
+- [ ] **Async Loading Demo** - Background resource loading
+  - Thread pool with priorities
+  - Progress callbacks and cancellation
+  - Batch loading example
+
+- [ ] **Scene System Demo** - Level management
+  - Scene loading from TOML
+  - Scene transitions and state machine
+  - Entity lifetime tied to scenes
+
+- [ ] **Transform System Demo** - Hierarchy visualization
+  - Parent-child transforms
+  - Local vs world coordinates
+  - Interactive hierarchy manipulation
 
 ---
 

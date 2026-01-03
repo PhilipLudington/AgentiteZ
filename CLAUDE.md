@@ -10,7 +10,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 
 **Core Features:**
 - **ECS Architecture** - Entity-Component-System with sparse-set storage, generation counters, dependency ordering, and runtime reflection
-- **UI System** - 13 widget types with automatic layout, DPI scaling, and centralized Theme system
+- **UI System** - 14 widget types with automatic layout, DPI scaling, and centralized Theme system
 - **Rendering** - SDL3 + bgfx for cross-platform graphics (Metal/Vulkan/DirectX/OpenGL)
 - **Audio System** - Sound effects and music playback with mixing, volume control, and 2D panning
 - **Camera System** - 2D camera with zoom, rotation, smooth follow, bounds, and screen shake
@@ -43,6 +43,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 - **Async Loading** - Background resource loading with thread pool, priorities, progress callbacks, and cancellation
 - **Virtual Resolution** - Fixed 1920x1080 coordinate space with fit/fill/stretch modes and mouse coordinate transformation
 - **Tween System** - UI animation with 30+ easing functions, sequence/parallel composition, and callbacks
+- **Game Speed System** - Multiple speed settings with pause, per-system scaling, and SpeedControl UI widget
 - **Configuration System** - Pure Zig TOML parser with validation and escape sequence support
 - **Save/Load System** - Human-readable TOML-based game state persistence
 
@@ -317,6 +318,9 @@ Background resource loading with thread pool, load priorities (critical/high/nor
 
 ### Tween System (`src/tween.zig`)
 UI animation system with 30+ easing functions (linear, quad, cubic, sine, expo, circ, back, elastic, bounce), property animation for floats/Vec2/Color, sequence and parallel composition via TweenSequence/TweenGroup, callbacks (on_start, on_update, on_complete), yoyo mode, repeat support, and delay. Managed via TweenManager for automatic cleanup.
+
+### Game Speed System (`src/game_speed.zig`) **[Full docs](docs/api/game-speed.md)**
+Game speed and timing control with multiple speed settings (pause, 0.5x, 1x, 2x, 4x), pause functionality with resume to previous speed, per-system speed scaling (game delta vs real delta), preset cycling, and custom speed values. Includes SpeedControl UI widget in `src/ui/widgets/speed_control.zig` with full and compact variants.
 
 ### ViewModel System (`src/viewmodel/`)
 MVVM data binding for reactive UI. Core types:

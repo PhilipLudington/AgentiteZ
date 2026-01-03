@@ -60,6 +60,14 @@ pub const DropdownState = widgets.DropdownState;
 pub const ScrollListState = widgets.ScrollListState;
 pub const TabBarState = widgets.TabBarState;
 
+// Speed control widget
+pub const SpeedControlOptions = widgets.SpeedControlOptions;
+pub const SpeedControlResult = widgets.SpeedControlResult;
+pub const speedControl = widgets.speedControl;
+pub const speedControlAuto = widgets.speedControlAuto;
+pub const speedControlCompact = widgets.speedControlCompact;
+pub const speedControlCompactAuto = widgets.speedControlCompactAuto;
+
 // Test modules (compiled only during `zig build test`)
 test {
     _ = @import("ui/integration_tests.zig");

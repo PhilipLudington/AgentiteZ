@@ -22,6 +22,7 @@ const table_mod = @import("widgets/table.zig");
 const color_picker_mod = @import("widgets/color_picker.zig");
 const notification_mod = @import("widgets/notification.zig");
 const ecs_inspector_mod = @import("widgets/ecs_inspector.zig");
+const speed_control_mod = @import("widgets/speed_control.zig");
 
 // ============================================================================
 // Re-export all widget functions
@@ -123,3 +124,11 @@ pub const InspectorResult = ecs_inspector_mod.InspectorResult;
 pub const EntityDisplayInfo = ecs_inspector_mod.EntityDisplayInfo;
 pub const ecsInspector = ecs_inspector_mod.ecsInspector;
 pub const ecsInspectorAuto = ecs_inspector_mod.ecsInspectorAuto;
+
+// Speed control widgets (game speed/pause management)
+pub const SpeedControlOptions = speed_control_mod.SpeedControlOptions;
+pub const SpeedControlResult = speed_control_mod.SpeedControlResult;
+pub const speedControl = speed_control_mod.speedControl;
+pub const speedControlAuto = speed_control_mod.speedControlAuto;
+pub const speedControlCompact = speed_control_mod.speedControlCompact;
+pub const speedControlCompactAuto = speed_control_mod.speedControlCompactAuto;
