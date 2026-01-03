@@ -283,43 +283,52 @@ pub const FieldIterator = struct {
 // ============================================================================
 
 /// Generate ComponentTypeMetadata at comptime for a type
+/// Returns a pointer to static metadata that can be stored at runtime
 pub fn generateMetadata(comptime T: type) ComponentTypeMetadata {
     const type_info = @typeInfo(T);
     if (type_info != .@"struct") {
         @compileError("generateMetadata requires a struct type, got " ++ @typeName(T));
     }
 
-    const struct_info = type_info.@"struct";
-    const fields = struct_info.fields;
+    // Use a type-specific struct to hold static const data
+    // This ensures the field_infos array has a stable address at runtime
+    const MetaHolder = struct {
+        const struct_info = @typeInfo(T).@"struct";
+        const fields = struct_info.fields;
 
-    comptime var field_infos: [fields.len]FieldInfo = undefined;
+        const field_infos: [fields.len]FieldInfo = blk: {
+            var infos: [fields.len]FieldInfo = undefined;
+            for (fields, 0..) |field, i| {
+                const default_val: ?FieldValue = if (field.default_value_ptr) |dv| dv_blk: {
+                    const default: *const field.type = @ptrCast(@alignCast(dv));
+                    break :dv_blk convertToFieldValue(field.type, default.*);
+                } else null;
 
-    inline for (fields, 0..) |field, i| {
-        const default_val: ?FieldValue = if (field.default_value_ptr) |dv| blk: {
-            const default: *const field.type = @ptrCast(@alignCast(dv));
-            break :blk convertToFieldValue(field.type, default.*);
-        } else null;
+                const is_opt = @typeInfo(field.type) == .optional;
 
-        const is_opt = @typeInfo(field.type) == .optional;
-
-        field_infos[i] = .{
-            .name = field.name,
-            .type_name = @typeName(field.type),
-            .offset = @offsetOf(T, field.name),
-            .size = @sizeOf(field.type),
-            .kind = FieldKind.fromType(field.type),
-            .default_value = default_val,
-            .is_optional = is_opt,
+                infos[i] = .{
+                    .name = field.name,
+                    .type_name = @typeName(field.type),
+                    .offset = @offsetOf(T, field.name),
+                    .size = @sizeOf(field.type),
+                    .kind = FieldKind.fromType(field.type),
+                    .default_value = default_val,
+                    .is_optional = is_opt,
+                };
+            }
+            break :blk infos;
         };
-    }
 
-    return .{
-        .name = @typeName(T),
-        .fields = &field_infos,
-        .size = @sizeOf(T),
-        .alignment = @alignOf(T),
-        .field_count = fields.len,
+        const metadata = ComponentTypeMetadata{
+            .name = @typeName(T),
+            .fields = &field_infos,
+            .size = @sizeOf(T),
+            .alignment = @alignOf(T),
+            .field_count = fields.len,
+        };
     };
+
+    return MetaHolder.metadata;
 }
 
 /// Convert a value to FieldValue at comptime

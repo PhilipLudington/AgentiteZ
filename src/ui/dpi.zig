@@ -185,7 +185,7 @@ pub const DpiConfig = struct {
             .physical_height = @floatFromInt(render_scale.window_height),
             .high_dpi_enabled = actual_dpi_scale > 1.1,
             .monitor_index = 0, // Not needed for SDL3 - kept for compatibility
-            .auto_scale_mouse = false, // RenderScale handles this automatically
+            .auto_scale_mouse = true, // Enable automatic mouse coordinate transformation
         };
     }
 

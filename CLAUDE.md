@@ -391,6 +391,13 @@ Formatted text display with BBCode-style markup supporting bold, italic, underli
 ### Color Picker Widget (`src/ui/widgets/color_picker.zig`)
 HSV/RGB color selection with saturation-value gradient picker, hue slider, optional alpha channel, and preset color swatches. Includes hex color parsing/formatting, RGB display, and a compact variant (button + popup). Full widget with 9 tests.
 
+### ECS Inspector Widget (`src/ui/widgets/ecs_inspector.zig`)
+Debug UI for ECS entity inspection with two tabs:
+- **Entity Browser**: Scrollable list with text filtering, displays entity ID and generation, shows component count per entity, click to select
+- **Component Viewer**: Shows all components on selected entity, reflection-based field display with type-appropriate coloring, inline editing for primitive types (int, float, bool, string)
+- **Archetype Statistics**: Per-component usage counts, total entity count, registered component type count
+Uses PrefabRegistry for component type enumeration and ComponentAccessor for runtime field access. Requires entity_component_checker interface with `hasComponent(entity, type_name)` and `getComponentPtr(entity, type_name)` methods.
+
 ## Important Notes
 
 - `src/bgfx.zig` is auto-generated from the bgfx C API - modifications should be made to the bgfx binding generator, not this file

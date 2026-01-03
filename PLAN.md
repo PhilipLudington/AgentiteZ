@@ -164,11 +164,12 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
   Implemented in `src/ecs/reflection.zig`, `src/ecs/component_accessor.zig`,
   `src/ecs/serialization.zig` with 25+ tests
 
-- [ ] **ECS Inspector** - Debug UI for entities
+- [x] **ECS Inspector** - Debug UI for entities
   - Entity browser with filtering
-  - Component viewer/editor
-  - Real-time value modification
-  - Archetype statistics
+  - Component viewer/editor with reflection integration
+  - Real-time value modification for primitive types
+  - Archetype statistics with per-component counts
+  Implemented in `src/ui/widgets/ecs_inspector.zig` with 9 tests
 
 ## Phase 5: Additional Strategy Systems
 

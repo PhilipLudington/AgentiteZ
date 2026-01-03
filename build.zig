@@ -88,6 +88,10 @@ pub fn build(b: *std.Build) void {
     const shapes_demo_exe = createExecutable(b, target, optimize, mod, "shapes_demo", "examples/shapes_demo.zig", is_macos, &bgfx_flags);
     b.installArtifact(shapes_demo_exe);
 
+    // ECS Inspector Demo - demonstrates the ECS Inspector debug UI widget
+    const ecs_inspector_demo_exe = createExecutable(b, target, optimize, mod, "ecs_inspector_demo", "examples/ecs_inspector_demo.zig", is_macos, &bgfx_flags);
+    b.installArtifact(ecs_inspector_demo_exe);
+
     // === Run Steps ===
 
     // Run step for basic demo
@@ -131,6 +135,12 @@ pub fn build(b: *std.Build) void {
     const run_shapes_cmd = b.addRunArtifact(shapes_demo_exe);
     run_shapes_cmd.step.dependOn(b.getInstallStep());
     run_shapes_step.dependOn(&run_shapes_cmd.step);
+
+    // Run step for ECS Inspector demo
+    const run_inspector_step = b.step("run-inspector", "Run the ECS Inspector demo (entity debugging)");
+    const run_inspector_cmd = b.addRunArtifact(ecs_inspector_demo_exe);
+    run_inspector_cmd.step.dependOn(b.getInstallStep());
+    run_inspector_step.dependOn(&run_inspector_cmd.step);
 
     // === Tests ===
 

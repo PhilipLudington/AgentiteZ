@@ -376,16 +376,33 @@ pub const PrefabRegistry = struct {
             fn getFieldValue(comptime C: type, component: *const C, comptime field_name: []const u8) ?reflection.FieldValue {
                 const FieldType = @TypeOf(@field(component.*, field_name));
                 const val = @field(component.*, field_name);
-                const kind = reflection.FieldKind.fromType(FieldType);
+                const info = @typeInfo(FieldType);
 
-                return switch (kind) {
-                    .int_signed => .{ .int = @intCast(val) },
-                    .int_unsigned => .{ .uint = @intCast(val) },
+                // Use @typeInfo for comptime type dispatch to avoid type-checking
+                // invalid operations in unreachable switch branches
+                return switch (info) {
+                    .int => |i| if (i.signedness == .signed)
+                        .{ .int = @intCast(val) }
+                    else
+                        .{ .uint = @intCast(val) },
                     .float => .{ .float = @floatCast(val) },
-                    .boolean => .{ .boolean = val },
-                    .entity => .{ .entity = val },
-                    .optional_entity => .{ .optional_entity = val },
-                    .vec2 => .{ .vec2 = .{ .x = val.x, .y = val.y } },
+                    .bool => .{ .boolean = val },
+                    .@"struct" => blk: {
+                        if (FieldType == ecs.Entity) {
+                            break :blk .{ .entity = val };
+                        }
+                        // Check for Vec2-like structs
+                        if (@hasField(FieldType, "x") and @hasField(FieldType, "y")) {
+                            break :blk .{ .vec2 = .{ .x = val.x, .y = val.y } };
+                        }
+                        break :blk null;
+                    },
+                    .optional => |o| blk: {
+                        if (o.child == ecs.Entity) {
+                            break :blk .{ .optional_entity = val };
+                        }
+                        break :blk null;
+                    },
                     .@"enum" => .{ .enum_value = .{ .type_name = @typeName(FieldType), .value_name = @tagName(val) } },
                     else => null,
                 };
@@ -393,31 +410,33 @@ pub const PrefabRegistry = struct {
 
             fn setFieldValue(comptime C: type, component: *C, comptime field_name: []const u8, value: reflection.FieldValue) bool {
                 const FieldType = @TypeOf(@field(component.*, field_name));
-                const kind = reflection.FieldKind.fromType(FieldType);
+                const info = @typeInfo(FieldType);
 
-                switch (kind) {
-                    .int_signed => {
-                        if (value == .int) {
-                            @field(component.*, field_name) = @intCast(value.int);
-                            return true;
-                        } else if (value == .uint) {
-                            @field(component.*, field_name) = @intCast(value.uint);
-                            return true;
-                        } else if (value == .float) {
-                            @field(component.*, field_name) = @intFromFloat(value.float);
-                            return true;
-                        }
-                    },
-                    .int_unsigned => {
-                        if (value == .uint) {
-                            @field(component.*, field_name) = @intCast(value.uint);
-                            return true;
-                        } else if (value == .int and value.int >= 0) {
-                            @field(component.*, field_name) = @intCast(value.int);
-                            return true;
-                        } else if (value == .float and value.float >= 0) {
-                            @field(component.*, field_name) = @intFromFloat(value.float);
-                            return true;
+                // Use @typeInfo for comptime type dispatch
+                switch (info) {
+                    .int => |i| {
+                        if (i.signedness == .signed) {
+                            if (value == .int) {
+                                @field(component.*, field_name) = @intCast(value.int);
+                                return true;
+                            } else if (value == .uint) {
+                                @field(component.*, field_name) = @intCast(value.uint);
+                                return true;
+                            } else if (value == .float) {
+                                @field(component.*, field_name) = @intFromFloat(value.float);
+                                return true;
+                            }
+                        } else {
+                            if (value == .uint) {
+                                @field(component.*, field_name) = @intCast(value.uint);
+                                return true;
+                            } else if (value == .int and value.int >= 0) {
+                                @field(component.*, field_name) = @intCast(value.int);
+                                return true;
+                            } else if (value == .float and value.float >= 0) {
+                                @field(component.*, field_name) = @intFromFloat(value.float);
+                                return true;
+                            }
                         }
                     },
                     .float => {
@@ -432,25 +451,29 @@ pub const PrefabRegistry = struct {
                             return true;
                         }
                     },
-                    .boolean => {
+                    .bool => {
                         if (value == .boolean) {
                             @field(component.*, field_name) = value.boolean;
                             return true;
                         }
                     },
-                    .entity => {
-                        if (value == .entity) {
-                            @field(component.*, field_name) = value.entity;
-                            return true;
+                    .@"struct" => {
+                        if (FieldType == ecs.Entity) {
+                            if (value == .entity) {
+                                @field(component.*, field_name) = value.entity;
+                                return true;
+                            }
                         }
                     },
-                    .optional_entity => {
-                        if (value == .optional_entity) {
-                            @field(component.*, field_name) = value.optional_entity;
-                            return true;
-                        } else if (value == .entity) {
-                            @field(component.*, field_name) = value.entity;
-                            return true;
+                    .optional => |o| {
+                        if (o.child == ecs.Entity) {
+                            if (value == .optional_entity) {
+                                @field(component.*, field_name) = value.optional_entity;
+                                return true;
+                            } else if (value == .entity) {
+                                @field(component.*, field_name) = value.entity;
+                                return true;
+                            }
                         }
                     },
                     else => {},
@@ -755,7 +778,7 @@ fn createComponent(comptime T: type, data: *const ComponentData) T {
 
     // Initialize with default values if available
     inline for (@typeInfo(T).@"struct".fields) |field| {
-        if (field.default_value) |default_ptr| {
+        if (field.default_value_ptr) |default_ptr| {
             const default: *const field.type = @ptrCast(@alignCast(default_ptr));
             @field(component, field.name) = default.*;
         } else {

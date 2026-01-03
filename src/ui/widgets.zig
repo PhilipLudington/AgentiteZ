@@ -21,6 +21,7 @@ const rich_text_mod = @import("widgets/rich_text.zig");
 const table_mod = @import("widgets/table.zig");
 const color_picker_mod = @import("widgets/color_picker.zig");
 const notification_mod = @import("widgets/notification.zig");
+const ecs_inspector_mod = @import("widgets/ecs_inspector.zig");
 
 // ============================================================================
 // Re-export all widget functions
@@ -115,3 +116,10 @@ pub const NotificationDisplayOptions = notification_mod.NotificationDisplayOptio
 pub const NotificationManager = notification_mod.NotificationManager;
 pub const renderNotifications = notification_mod.renderNotifications;
 pub const MAX_NOTIFICATIONS = notification_mod.MAX_NOTIFICATIONS;
+
+// ECS Inspector widgets (entity debugging and introspection)
+pub const EcsInspectorState = ecs_inspector_mod.EcsInspectorState;
+pub const InspectorResult = ecs_inspector_mod.InspectorResult;
+pub const EntityDisplayInfo = ecs_inspector_mod.EntityDisplayInfo;
+pub const ecsInspector = ecs_inspector_mod.ecsInspector;
+pub const ecsInspectorAuto = ecs_inspector_mod.ecsInspectorAuto;
