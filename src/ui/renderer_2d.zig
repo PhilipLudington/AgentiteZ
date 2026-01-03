@@ -617,9 +617,11 @@ pub const Renderer2D = struct {
             0,
         );
 
-        // Submit draw call with appropriate shader (SDF or bitmap)
+        // Submit draw call with appropriate shader (MSDF, SDF, or bitmap)
         const atlas_to_use = self.external_font_atlas orelse &self.font_atlas;
-        const program = if (atlas_to_use.use_sdf)
+        const program = if (atlas_to_use.use_msdf)
+            self.shader_programs.msdf_text_program
+        else if (atlas_to_use.use_sdf)
             self.shader_programs.sdf_text_program
         else
             self.shader_programs.texture_program;

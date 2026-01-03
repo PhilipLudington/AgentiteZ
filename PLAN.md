@@ -63,12 +63,19 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
   - Screen-space vs world-space modes
   Implemented in `src/gizmo.zig` with 21 tests
 
-- [ ] **MSDF Text Rendering** - High-quality scalable text
+- [x] **MSDF Text Rendering** - High-quality scalable text
   - Multi-channel signed distance field fonts
-  - MSDF atlas generation (offline or runtime)
-  - Smooth text at any scale
-  - Outline and shadow effects
-  Current font system is bitmap-based
+  - Runtime MSDF atlas generation in pure Zig
+  - Smooth text at any scale with sharp corner preservation
+  - Edge coloring algorithm for corner detection
+  Implemented in `src/renderer/msdf/` with 25+ tests:
+  - `math_utils.zig` - Vec2, SignedDistance, polynomial solvers
+  - `edge.zig` - Linear, Quadratic, Cubic Bezier segments
+  - `contour.zig` - Shape/Contour from stb_truetype vertices
+  - `edge_coloring.zig` - Corner detection and color assignment
+  - `msdf_generator.zig` - Core MSDF generation algorithm
+  FontAtlas.initMSDF() in `src/renderer/font_atlas.zig`
+  MSDF shader in `src/ui/shaders_source/fs_msdf_text.sc`
 
 ### Debug Visualization
 - [x] **Line Renderer** - Debug line drawing

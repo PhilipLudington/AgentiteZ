@@ -12,6 +12,9 @@ pub const ShaderPrograms = struct {
     /// Program for rendering SDF (Signed Distance Field) text
     sdf_text_program: bgfx.ProgramHandle,
 
+    /// Program for rendering MSDF (Multi-channel Signed Distance Field) text
+    msdf_text_program: bgfx.ProgramHandle,
+
     /// Texture sampler uniform for texture program
     texture_sampler: bgfx.UniformHandle,
 
@@ -59,6 +62,20 @@ pub const ShaderPrograms = struct {
         // Create SDF text program
         const sdf_text_program = bgfx.createProgram(vs_sdf_text, fs_sdf_text, true);
 
+        // Load MSDF text shaders (reuse SDF vertex shader, different fragment shader)
+        const vs_msdf_text_data = @embedFile("shaders_data/vs_sdf_text.bin");
+        const fs_msdf_text_data = @embedFile("shaders_data/fs_msdf_text.bin");
+
+        // Create shader handles
+        const vs_msdf_text_mem = bgfx.copy(vs_msdf_text_data.ptr, @intCast(vs_msdf_text_data.len));
+        const vs_msdf_text = bgfx.createShader(vs_msdf_text_mem);
+
+        const fs_msdf_text_mem = bgfx.copy(fs_msdf_text_data.ptr, @intCast(fs_msdf_text_data.len));
+        const fs_msdf_text = bgfx.createShader(fs_msdf_text_mem);
+
+        // Create MSDF text program
+        const msdf_text_program = bgfx.createProgram(vs_msdf_text, fs_msdf_text, true);
+
         // Create texture sampler uniform
         const texture_sampler = bgfx.createUniform("s_texColor", bgfx.UniformType.Sampler, 1);
 
@@ -66,6 +83,7 @@ pub const ShaderPrograms = struct {
             .color_program = color_program,
             .texture_program = texture_program,
             .sdf_text_program = sdf_text_program,
+            .msdf_text_program = msdf_text_program,
             .texture_sampler = texture_sampler,
         };
     }
@@ -75,6 +93,7 @@ pub const ShaderPrograms = struct {
         bgfx.destroyProgram(self.color_program);
         bgfx.destroyProgram(self.texture_program);
         bgfx.destroyProgram(self.sdf_text_program);
+        bgfx.destroyProgram(self.msdf_text_program);
         bgfx.destroyUniform(self.texture_sampler);
     }
 };

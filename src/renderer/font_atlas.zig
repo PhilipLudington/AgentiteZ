@@ -7,6 +7,7 @@ const std = @import("std");
 const bgfx = @import("../bgfx.zig");
 const stb = @import("../stb_truetype.zig");
 const log = @import("../log.zig");
+const msdf = @import("msdf.zig");
 
 /// Check if data starts with valid TrueType/OpenType magic number
 fn isValidFontMagic(data: []const u8) bool {
@@ -93,6 +94,7 @@ pub const FontAtlas = struct {
     allocator: std.mem.Allocator,
     use_packed: bool, // True if using optimized packing
     use_sdf: bool, // True if using SDF (Signed Distance Field)
+    use_msdf: bool = false, // True if using MSDF (Multi-channel Signed Distance Field)
 
     /// Load a TrueType font and generate a texture atlas (with optimized packing)
     pub fn init(allocator: std.mem.Allocator, font_path: []const u8, font_size: f32, flip_uv: bool) !FontAtlas {
@@ -129,6 +131,14 @@ pub const FontAtlas = struct {
     /// Recommended for games with zoom/camera movement (4X strategy, factory-building)
     pub fn initSDF(allocator: std.mem.Allocator, font_path: []const u8, font_size: f32, flip_uv: bool) !FontAtlas {
         return initSDFAtlas(allocator, font_path, font_size, flip_uv);
+    }
+
+    /// Load a TrueType font and generate MSDF (Multi-channel Signed Distance Field) atlas
+    /// MSDF preserves sharp corners that basic SDF loses, providing superior quality
+    /// for scalable text with smooth edges at any zoom level
+    /// Supports outline and shadow effects via shader uniforms
+    pub fn initMSDF(allocator: std.mem.Allocator, font_path: []const u8, font_size: f32, flip_uv: bool) !FontAtlas {
+        return initMSDFAtlas(allocator, font_path, font_size, flip_uv);
     }
 
     /// Initialize atlas using stb_truetype's optimized pack API
@@ -700,6 +710,241 @@ pub const FontAtlas = struct {
             .allocator = allocator,
             .use_packed = false,
             .use_sdf = true,
+        };
+    }
+
+    /// Initialize atlas using MSDF (Multi-channel Signed Distance Field) rendering
+    /// MSDF provides perfect scaling with sharp corners preserved
+    fn initMSDFAtlas(allocator: std.mem.Allocator, font_path: []const u8, font_size: f32, flip_uv: bool) !FontAtlas {
+        // Load and validate font file
+        const font_data = try loadAndValidateFontFile(allocator, font_path);
+        defer allocator.free(font_data);
+
+        // Initialize stb_truetype
+        var font_info: stb.FontInfo = undefined;
+        if (stb.initFont(&font_info, font_data.ptr, 0) == 0) {
+            log.err("Renderer", "stb_truetype failed to parse font '{s}' (invalid font tables)", .{font_path});
+            return error.FontInitFailed;
+        }
+
+        // Calculate font metrics
+        const scale = stb.scaleForPixelHeight(&font_info, font_size);
+        var ascent_i: c_int = undefined;
+        var descent_i: c_int = undefined;
+        var line_gap_i: c_int = undefined;
+        stb.getFontVMetrics(&font_info, &ascent_i, &descent_i, &line_gap_i);
+        const line_height = @as(f32, @floatFromInt(ascent_i - descent_i + line_gap_i)) * scale;
+
+        log.info("Renderer", "Loading font '{s}' at {d:.1}px (MSDF MODE)", .{ font_path, font_size });
+
+        // MSDF parameters
+        const msdf_glyph_size: u32 = 48; // Size of each glyph in atlas
+        const msdf_padding: u32 = 4; // Padding around each glyph
+        const msdf_range: f64 = 4.0; // Distance field range
+
+        // Atlas layout: 16x16 grid for 256 glyphs
+        const grid_size: u32 = 16;
+        const cell_size = msdf_glyph_size;
+        const atlas_width: u32 = grid_size * cell_size;
+        const atlas_height: u32 = grid_size * cell_size;
+
+        // Allocate RGBA8 atlas (4 bytes per pixel)
+        const atlas_bitmap = try allocator.alloc(u8, atlas_width * atlas_height * 4);
+        defer allocator.free(atlas_bitmap);
+        // Initialize to mid-gray (edge value for all channels) + full alpha
+        for (0..atlas_width * atlas_height) |i| {
+            atlas_bitmap[i * 4 + 0] = 127; // R
+            atlas_bitmap[i * 4 + 1] = 127; // G
+            atlas_bitmap[i * 4 + 2] = 127; // B
+            atlas_bitmap[i * 4 + 3] = 255; // A
+        }
+
+        // Initialize glyphs array
+        var glyphs: [256]Glyph = undefined;
+        for (&glyphs) |*g| {
+            g.* = std.mem.zeroes(Glyph);
+        }
+
+        var rendered_count: usize = 0;
+
+        // Render MSDF for each printable ASCII character (32-126)
+        for (32..127) |char_code| {
+            const char: c_int = @intCast(char_code);
+            const glyph_idx = char_code;
+
+            // Get glyph metrics
+            var advance: c_int = undefined;
+            var lsb: c_int = undefined;
+            stb.getCodepointHMetrics(&font_info, char, &advance, &lsb);
+            const advance_pixels = @as(f32, @floatFromInt(advance)) * scale;
+
+            // Get glyph shape (vertices)
+            var vertices: [*c]stb.Vertex = undefined;
+            const num_vertices = stb.getCodepointShape(&font_info, char, &vertices);
+
+            if (num_vertices == 0 or vertices == null) {
+                // No shape (like space) - store advance but no bitmap
+                glyphs[glyph_idx] = Glyph{
+                    .uv_x0 = 0,
+                    .uv_y0 = 0,
+                    .uv_x1 = 0,
+                    .uv_y1 = 0,
+                    .offset_x = 0,
+                    .offset_y = 0,
+                    .width = 0,
+                    .height = 0,
+                    .advance = advance_pixels,
+                };
+                continue;
+            }
+            defer stb.freeShape(&font_info, vertices);
+
+            // Convert stb vertices to MSDF Shape
+            // We need to cast the vertices pointer to our expected format
+            const vertex_slice = @as([*]const msdf.StbttVertex, @ptrCast(vertices))[0..@intCast(num_vertices)];
+
+            // Calculate scale for MSDF rendering
+            // Use scaleForPixelHeight to get proper em scaling
+            const msdf_scale_f = stb.scaleForPixelHeight(&font_info, @floatFromInt(msdf_glyph_size - 2 * msdf_padding));
+            const render_scale: f64 = @floatCast(msdf_scale_f);
+
+            var shape = msdf.Shape.fromVertices(
+                allocator,
+                vertex_slice.ptr,
+                @intCast(num_vertices),
+                render_scale,
+                true, // flip Y (TrueType Y is up, our atlas Y is down)
+            ) catch {
+                // Failed to build shape - skip this glyph
+                glyphs[glyph_idx] = Glyph{
+                    .uv_x0 = 0,
+                    .uv_y0 = 0,
+                    .uv_x1 = 0,
+                    .uv_y1 = 0,
+                    .offset_x = 0,
+                    .offset_y = 0,
+                    .width = 0,
+                    .height = 0,
+                    .advance = advance_pixels,
+                };
+                continue;
+            };
+            defer shape.deinit();
+
+            // Get shape bounds and calculate proper translation
+            const bounds = shape.bounds();
+            const shape_width = bounds.max.x - bounds.min.x;
+            const shape_height = bounds.max.y - bounds.min.y;
+
+            // Center shape in glyph cell with padding
+            const offset_x = @as(f64, @floatFromInt(msdf_padding)) - bounds.min.x + ((@as(f64, @floatFromInt(msdf_glyph_size - 2 * msdf_padding)) - shape_width) / 2.0);
+            const offset_y = @as(f64, @floatFromInt(msdf_padding)) - bounds.min.y + ((@as(f64, @floatFromInt(msdf_glyph_size - 2 * msdf_padding)) - shape_height) / 2.0);
+
+            // Generate MSDF
+            var msdf_result = msdf.generateMsdf(allocator, &shape, .{
+                .width = msdf_glyph_size,
+                .height = msdf_glyph_size,
+                .range = msdf_range,
+                .translate = msdf.Vec2.init(-offset_x, -offset_y),
+                .scale = msdf.Vec2.init(1.0, 1.0),
+            }) catch {
+                glyphs[glyph_idx] = Glyph{
+                    .uv_x0 = 0,
+                    .uv_y0 = 0,
+                    .uv_x1 = 0,
+                    .uv_y1 = 0,
+                    .offset_x = 0,
+                    .offset_y = 0,
+                    .width = 0,
+                    .height = 0,
+                    .advance = advance_pixels,
+                };
+                continue;
+            };
+            defer msdf_result.deinit();
+
+            // Calculate grid position for this glyph
+            const grid_x = glyph_idx % grid_size;
+            const grid_y = glyph_idx / grid_size;
+            const atlas_x = grid_x * cell_size;
+            const atlas_y = grid_y * cell_size;
+
+            // Copy MSDF RGB data to RGBA atlas
+            for (0..msdf_glyph_size) |y| {
+                for (0..msdf_glyph_size) |x| {
+                    const src_idx = (y * msdf_glyph_size + x) * 3;
+                    const dst_x = atlas_x + x;
+                    const dst_y = atlas_y + y;
+                    const dst_idx = (dst_y * atlas_width + dst_x) * 4;
+
+                    atlas_bitmap[dst_idx + 0] = msdf_result.bitmap[src_idx + 0]; // R
+                    atlas_bitmap[dst_idx + 1] = msdf_result.bitmap[src_idx + 1]; // G
+                    atlas_bitmap[dst_idx + 2] = msdf_result.bitmap[src_idx + 2]; // B
+                    atlas_bitmap[dst_idx + 3] = 255; // A
+                }
+            }
+
+            // Calculate UV coordinates
+            const atlas_width_f: f32 = @floatFromInt(atlas_width);
+            const atlas_height_f: f32 = @floatFromInt(atlas_height);
+
+            const uv_x0 = @as(f32, @floatFromInt(atlas_x)) / atlas_width_f;
+            const uv_y0 = if (flip_uv)
+                1.0 - @as(f32, @floatFromInt(atlas_y + msdf_glyph_size)) / atlas_height_f
+            else
+                @as(f32, @floatFromInt(atlas_y)) / atlas_height_f;
+
+            const uv_x1 = @as(f32, @floatFromInt(atlas_x + msdf_glyph_size)) / atlas_width_f;
+            const uv_y1 = if (flip_uv)
+                1.0 - @as(f32, @floatFromInt(atlas_y)) / atlas_height_f
+            else
+                @as(f32, @floatFromInt(atlas_y + msdf_glyph_size)) / atlas_height_f;
+
+            // Scale glyph metrics to target font size
+            const scale_factor = font_size / @as(f32, @floatFromInt(msdf_glyph_size - 2 * msdf_padding));
+
+            glyphs[glyph_idx] = Glyph{
+                .uv_x0 = uv_x0,
+                .uv_y0 = uv_y0,
+                .uv_x1 = uv_x1,
+                .uv_y1 = uv_y1,
+                .offset_x = @as(f32, @floatCast(-offset_x)) * scale_factor,
+                .offset_y = @as(f32, @floatCast(-offset_y)) * scale_factor,
+                .width = @as(f32, @floatFromInt(msdf_glyph_size)) * scale_factor,
+                .height = @as(f32, @floatFromInt(msdf_glyph_size)) * scale_factor,
+                .advance = advance_pixels,
+            };
+
+            rendered_count += 1;
+        }
+
+        log.info("Renderer", "Rendered {d} MSDF glyphs into {d}x{d} atlas", .{ rendered_count, atlas_width, atlas_height });
+
+        // Create bgfx texture (RGBA8 format for MSDF)
+        const texture_flags = bgfx.SamplerFlags_UClamp | bgfx.SamplerFlags_VClamp;
+        const mem = bgfx.copy(atlas_bitmap.ptr, @intCast(atlas_bitmap.len));
+        const texture = bgfx.createTexture2D(
+            @intCast(atlas_width),
+            @intCast(atlas_height),
+            false, // NO mipmaps
+            1, // layers
+            bgfx.TextureFormat.RGBA8,
+            texture_flags,
+            mem,
+        );
+
+        return FontAtlas{
+            .texture = texture,
+            .glyphs = glyphs,
+            .atlas_width = atlas_width,
+            .atlas_height = atlas_height,
+            .font_size = font_size,
+            .line_height = line_height,
+            .ascent = @as(f32, @floatFromInt(ascent_i)) * scale,
+            .allocator = allocator,
+            .use_packed = false,
+            .use_sdf = false,
+            .use_msdf = true,
         };
     }
 
