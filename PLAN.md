@@ -154,11 +154,15 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
 ## Phase 4: ECS Enhancements
 
 ### Development Tools
-- [ ] **ECS Reflection System** - Runtime component introspection
-  - Component type registry
-  - Field metadata (name, type, offset)
-  - Serialization support
-  - Integration with config system
+- [x] **ECS Reflection System** - Runtime component introspection
+  - Component type registry with metadata capture at comptime
+  - Field metadata (name, type, offset, size, default value)
+  - FieldKind classification for serialization/UI
+  - Runtime field get/set via ComponentAccessor
+  - TOML serialization support
+  - Integration with PrefabRegistry (registerComponentTypeWithReflection)
+  Implemented in `src/ecs/reflection.zig`, `src/ecs/component_accessor.zig`,
+  `src/ecs/serialization.zig` with 25+ tests
 
 - [ ] **ECS Inspector** - Debug UI for entities
   - Entity browser with filtering

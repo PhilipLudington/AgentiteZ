@@ -13,6 +13,7 @@ const std = @import("std");
 const ecs = @import("ecs.zig");
 const Entity = ecs.Entity;
 const toml = @import("data/toml.zig");
+const reflection = @import("ecs/reflection.zig");
 
 // ============================================================================
 // Component Value Types
@@ -252,12 +253,22 @@ pub const ComponentApplier = *const fn (component_array: *anyopaque, entity: Ent
 /// Function type for cleaning up a component array
 pub const ComponentArrayDeinit = *const fn (component_array: *anyopaque) void;
 
+/// Function type for getting a field value from a component
+pub const FieldGetter = *const fn (component_ptr: *const anyopaque, field_name: []const u8) ?reflection.FieldValue;
+
+/// Function type for setting a field value on a component
+pub const FieldSetter = *const fn (component_ptr: *anyopaque, field_name: []const u8, value: reflection.FieldValue) bool;
+
 /// Registration info for a component type
 pub const ComponentTypeInfo = struct {
     name: []const u8,
     applier: ComponentApplier,
     component_array: *anyopaque,
     deinit_fn: ?ComponentArrayDeinit = null,
+    // Reflection fields (optional for backward compatibility)
+    metadata: ?*const reflection.ComponentTypeMetadata = null,
+    getter: ?FieldGetter = null,
+    setter: ?FieldSetter = null,
 };
 
 // ============================================================================
@@ -319,6 +330,145 @@ pub const PrefabRegistry = struct {
             .name = name_copy,
             .applier = Applier.apply,
             .component_array = component_array,
+        });
+    }
+
+    /// Register a component type with full reflection support
+    /// This provides runtime field access via getter/setter functions
+    pub fn registerComponentTypeWithReflection(
+        self: *PrefabRegistry,
+        comptime T: type,
+        component_array: *ecs.ComponentArray(T),
+    ) !void {
+        const type_name = @typeName(T);
+
+        // Generate metadata at comptime
+        const metadata = comptime reflection.generateMetadata(T);
+
+        // Create type-specific functions
+        const Accessors = struct {
+            fn apply(array_ptr: *anyopaque, entity: Entity, data: *const ComponentData) !void {
+                const array: *ecs.ComponentArray(T) = @ptrCast(@alignCast(array_ptr));
+                const component = createComponent(T, data);
+                try array.add(entity, component);
+            }
+
+            fn getField(ptr: *const anyopaque, field_name: []const u8) ?reflection.FieldValue {
+                const component: *const T = @ptrCast(@alignCast(ptr));
+                inline for (@typeInfo(T).@"struct".fields) |field| {
+                    if (std.mem.eql(u8, field.name, field_name)) {
+                        return getFieldValue(T, component, field.name);
+                    }
+                }
+                return null;
+            }
+
+            fn setField(ptr: *anyopaque, field_name: []const u8, value: reflection.FieldValue) bool {
+                const component: *T = @ptrCast(@alignCast(ptr));
+                inline for (@typeInfo(T).@"struct".fields) |field| {
+                    if (std.mem.eql(u8, field.name, field_name)) {
+                        return setFieldValue(T, component, field.name, value);
+                    }
+                }
+                return false;
+            }
+
+            fn getFieldValue(comptime C: type, component: *const C, comptime field_name: []const u8) ?reflection.FieldValue {
+                const FieldType = @TypeOf(@field(component.*, field_name));
+                const val = @field(component.*, field_name);
+                const kind = reflection.FieldKind.fromType(FieldType);
+
+                return switch (kind) {
+                    .int_signed => .{ .int = @intCast(val) },
+                    .int_unsigned => .{ .uint = @intCast(val) },
+                    .float => .{ .float = @floatCast(val) },
+                    .boolean => .{ .boolean = val },
+                    .entity => .{ .entity = val },
+                    .optional_entity => .{ .optional_entity = val },
+                    .vec2 => .{ .vec2 = .{ .x = val.x, .y = val.y } },
+                    .@"enum" => .{ .enum_value = .{ .type_name = @typeName(FieldType), .value_name = @tagName(val) } },
+                    else => null,
+                };
+            }
+
+            fn setFieldValue(comptime C: type, component: *C, comptime field_name: []const u8, value: reflection.FieldValue) bool {
+                const FieldType = @TypeOf(@field(component.*, field_name));
+                const kind = reflection.FieldKind.fromType(FieldType);
+
+                switch (kind) {
+                    .int_signed => {
+                        if (value == .int) {
+                            @field(component.*, field_name) = @intCast(value.int);
+                            return true;
+                        } else if (value == .uint) {
+                            @field(component.*, field_name) = @intCast(value.uint);
+                            return true;
+                        } else if (value == .float) {
+                            @field(component.*, field_name) = @intFromFloat(value.float);
+                            return true;
+                        }
+                    },
+                    .int_unsigned => {
+                        if (value == .uint) {
+                            @field(component.*, field_name) = @intCast(value.uint);
+                            return true;
+                        } else if (value == .int and value.int >= 0) {
+                            @field(component.*, field_name) = @intCast(value.int);
+                            return true;
+                        } else if (value == .float and value.float >= 0) {
+                            @field(component.*, field_name) = @intFromFloat(value.float);
+                            return true;
+                        }
+                    },
+                    .float => {
+                        if (value == .float) {
+                            @field(component.*, field_name) = @floatCast(value.float);
+                            return true;
+                        } else if (value == .int) {
+                            @field(component.*, field_name) = @floatFromInt(value.int);
+                            return true;
+                        } else if (value == .uint) {
+                            @field(component.*, field_name) = @floatFromInt(value.uint);
+                            return true;
+                        }
+                    },
+                    .boolean => {
+                        if (value == .boolean) {
+                            @field(component.*, field_name) = value.boolean;
+                            return true;
+                        }
+                    },
+                    .entity => {
+                        if (value == .entity) {
+                            @field(component.*, field_name) = value.entity;
+                            return true;
+                        }
+                    },
+                    .optional_entity => {
+                        if (value == .optional_entity) {
+                            @field(component.*, field_name) = value.optional_entity;
+                            return true;
+                        } else if (value == .entity) {
+                            @field(component.*, field_name) = value.entity;
+                            return true;
+                        }
+                    },
+                    else => {},
+                }
+                return false;
+            }
+        };
+
+        const name_copy = try self.allocator.dupe(u8, type_name);
+        errdefer self.allocator.free(name_copy);
+
+        try self.component_types.put(name_copy, .{
+            .name = name_copy,
+            .applier = Accessors.apply,
+            .component_array = component_array,
+            .metadata = &metadata,
+            .getter = Accessors.getField,
+            .setter = Accessors.setField,
         });
     }
 

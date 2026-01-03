@@ -9,7 +9,7 @@ AgentiteZ is a modern game engine framework built with Zig 0.15.1, providing pro
 **Production Status:** ✅ **8.5/10 - Production Quality** (see IMPROVEMENTS.md for detailed review)
 
 **Core Features:**
-- **ECS Architecture** - Entity-Component-System with sparse-set storage, generation counters, and dependency ordering
+- **ECS Architecture** - Entity-Component-System with sparse-set storage, generation counters, dependency ordering, and runtime reflection
 - **UI System** - 13 widget types with automatic layout, DPI scaling, and centralized Theme system
 - **Rendering** - SDL3 + bgfx for cross-platform graphics (Metal/Vulkan/DirectX/OpenGL)
 - **Audio System** - Sound effects and music playback with mixing, volume control, and 2D panning
@@ -119,7 +119,7 @@ The project has two main modules:
    - `bgfx` - bgfx rendering bindings
    - `stb_truetype` - TrueType font rendering
    - `ui` - Complete UI system with widgets, layout, and DPI handling
-   - `ecs` - Entity-Component-System architecture
+   - `ecs` - Entity-Component-System architecture with reflection (see ecs.reflection, ecs.ComponentAccessor, ecs.serialization)
    - `platform` - Platform abstraction layer (input handling, etc.)
    - `data` - TOML parsing utilities (no external dependencies)
    - `config` - Configuration loaders for game content (rooms, items, NPCs)
@@ -337,6 +337,35 @@ _ = try volume.subscribe(onVolumeChanged, null);
 
 // Two-way bind to slider widget
 vm.Binding.sliderFloatAuto(ctx, "Volume", 300, &volume, 0, 1);
+```
+
+### ECS Reflection System (`src/ecs/reflection.zig`, `src/ecs/component_accessor.zig`, `src/ecs/serialization.zig`)
+Runtime component introspection for ECS. Provides comptime metadata generation and runtime field access.
+- **FieldKind** - Classification of field types (int_signed, int_unsigned, float, boolean, string, vec2, entity, etc.)
+- **FieldInfo** - Field metadata (name, type, offset, size, default value, is_optional)
+- **ComponentTypeMetadata** - Full type info with field iteration
+- **generateMetadata(T)** - Comptime function to generate metadata for a struct type
+- **ComponentAccessor** - Runtime wrapper for type-erased field get/set
+- **serialization** - TOML serialization helpers
+
+Example usage:
+```zig
+const ecs = @import("AgentiteZ").ecs;
+const prefab = @import("AgentiteZ").prefab;
+
+const Position = struct { x: f32 = 0, y: f32 = 0 };
+
+// Register with reflection support
+try registry.registerComponentTypeWithReflection(Position, &positions);
+
+// Runtime access
+const accessor = ecs.ComponentAccessor.init(&registry);
+const metadata = accessor.getMetadata(@typeName(Position)).?;
+
+// Get/set fields by name
+var pos = Position{ .x = 100.0, .y = 200.0 };
+const x_val = accessor.getFieldValue(@typeName(Position), &pos, "x");
+_ = accessor.setFieldValue(@typeName(Position), &pos, "y", .{ .float = 300.0 });
 ```
 
 ---
