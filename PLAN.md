@@ -139,10 +139,17 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
   - Yoyo mode and repeat support
   Implemented in `src/tween.zig` with 25 tests
 
-- [ ] **View Model Pattern** - MVVM data binding
-  - Observable properties
-  - Automatic UI updates on data change
-  - Two-way binding for inputs
+- [x] **View Model Pattern** - MVVM data binding
+  - Observable properties with change notifications
+  - Computed properties for derived values with dependency tracking
+  - Two-way binding for sliders, checkboxes, text inputs
+  - ViewModel base type with lifecycle management
+  - Batching support for coalescing multiple changes
+  Implemented in `src/viewmodel/` with 25+ tests:
+  - `observable.zig` - Observable(T) generic wrapper with subscriptions
+  - `computed.zig` - Computed(T) derived values with auto-recompute
+  - `binding.zig` - Widget binding helpers for two-way binding
+  - `viewmodel.zig` - ViewModel base with binding cleanup
 
 ## Phase 4: ECS Enhancements
 

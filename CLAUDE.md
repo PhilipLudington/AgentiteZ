@@ -157,6 +157,7 @@ The project has two main modules:
    - `asset` - Unified resource management with type-safe handles, reference counting, and dependency tracking
    - `async_loader` - Background resource loading with thread pool, priorities, and cancellation
    - `tween` - UI animation with easing functions, property tweening, and composition
+   - `viewmodel` - MVVM data binding with observables, computed properties, and widget bindings
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -316,6 +317,27 @@ Background resource loading with thread pool, load priorities (critical/high/nor
 
 ### Tween System (`src/tween.zig`)
 UI animation system with 30+ easing functions (linear, quad, cubic, sine, expo, circ, back, elastic, bounce), property animation for floats/Vec2/Color, sequence and parallel composition via TweenSequence/TweenGroup, callbacks (on_start, on_update, on_complete), yoyo mode, repeat support, and delay. Managed via TweenManager for automatic cleanup.
+
+### ViewModel System (`src/viewmodel/`)
+MVVM data binding for reactive UI. Core types:
+- **Observable(T)** - Generic wrapper with change notifications, subscription handles, batching support
+- **Computed(T)** - Derived values that auto-recompute when dependencies change
+- **ViewModel** - Base type with binding lifecycle management
+- **Binding** - Widget helpers for two-way binding (sliderFloat, checkboxBool, textInputString)
+
+Example usage:
+```zig
+const vm = @import("viewmodel");
+
+var volume = vm.ObservableFloat.init(allocator, 0.8);
+defer volume.deinit();
+
+// Subscribe to changes
+_ = try volume.subscribe(onVolumeChanged, null);
+
+// Two-way bind to slider widget
+vm.Binding.sliderFloatAuto(ctx, "Volume", 300, &volume, 0, 1);
+```
 
 ---
 

@@ -63,6 +63,9 @@ pub const async_loader = @import("async_loader.zig");
 // Phase 11: UI Animation
 pub const tween = @import("tween.zig");
 
+// Phase 12: UI Data Binding
+pub const viewmodel = @import("viewmodel/root.zig");
+
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
 comptime {
@@ -74,6 +77,7 @@ test {
     _ = @import("audio_test.zig");
     _ = @import("camera3d.zig");
     _ = @import("gizmo.zig");
+    _ = @import("viewmodel/root.zig");
 }
 
 pub fn bufferedPrint() !void {
