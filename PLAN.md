@@ -192,11 +192,13 @@ These systems extend the existing strategy game framework.
   - Default consequences (missed payments, defaultLoan(), declareBankruptcy())
   Integrated into `src/finance.zig` with 20+ new tests
 
-- [ ] **Trade Routes** - Inter-region trade
-  - Trade route creation and management
-  - Supply/demand pricing
-  - Transport costs and time
-  - Trade agreements
+- [x] **Trade Routes** - Inter-region trade
+  - Trade route creation and management with priorities
+  - Supply/demand dynamic pricing with elasticity
+  - Transport costs based on distance and terrain
+  - Travel time simulation with goods in transit
+  - Trade agreements (open, MFN, free trade, embargo, exclusive)
+  Implemented in `src/trade.zig` with 25 tests
 
 - [ ] **Demand System** - Market simulation
   - Resource demand calculation

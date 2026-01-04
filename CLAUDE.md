@@ -160,6 +160,7 @@ The project has two main modules:
    - `tween` - UI animation with easing functions, property tweening, and composition
    - `viewmodel` - MVVM data binding with observables, computed properties, and widget bindings
    - `finance` - Economic management with income/expense tracking, budgets, and reports
+   - `trade` - Trade routes with supply/demand pricing, transport costs, and trade agreements
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -354,6 +355,47 @@ _ = try fm.recordExpense(.military, 500, "Unit upkeep");
 
 const report = try fm.endTurn();
 // report contains: total_income, total_expenses, net_change, per-category summaries
+```
+
+### Trade System (`src/trade.zig`)
+Inter-region trade route system with dynamic pricing, transport logistics, and trade agreements.
+- **Trade Routes** - Route creation with source/destination, amount per turn, priority, auto-adjust mode
+- **Market System** - Per-region market data with base price, production, demand, stockpile
+- **Dynamic Pricing** - Supply/demand based pricing with configurable elasticity, min/max multipliers
+- **Transport Logistics** - Distance and terrain-based transport costs, travel time simulation
+- **Goods in Transit** - Shipments tracked between departure and arrival with locked prices
+- **Trade Agreements** - open_trade, most_favored_nation, free_trade, embargo, exclusive
+- **Tariffs** - Configurable tariff rates per direction, default and agreement-specific
+- **Route Status** - active, paused, blocked, insufficient_supply, insufficient_demand
+- **Turn Processing** - Production, arrivals, trading, consumption in proper order
+- **Callbacks** - on_trade_completed, on_route_status_changed, on_price_changed, on_shipment_arrived
+
+Example usage:
+```zig
+const trade = @import("AgentiteZ").trade;
+const Resource = enum { food, ore, luxury };
+const Region = enum { capital, farmland, mines };
+
+var ts = trade.TradeSystem(Resource, Region).init(allocator);
+defer ts.deinit();
+
+// Set up markets
+ts.setBasePrice(.capital, .food, 100);
+ts.setRegionProduction(.farmland, .food, 100);
+ts.setRegionDemand(.capital, .food, 150);
+ts.setStockpile(.farmland, .food, 500);
+
+// Create trade route
+const route_id = try ts.createRoute(.{
+    .source = .farmland,
+    .destination = .capital,
+    .resource = .food,
+    .amount_per_turn = 50,
+});
+
+// Process turn
+const report = try ts.processTurn();
+// report contains: trades_executed, total_revenue, total_profit, shipments_arrived
 ```
 
 ### ViewModel System (`src/viewmodel/`)

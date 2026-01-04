@@ -100,6 +100,10 @@ pub fn build(b: *std.Build) void {
     const finance_demo_exe = createExecutable(b, target, optimize, mod, "finance_demo", "examples/finance_demo.zig", is_macos, &bgfx_flags);
     b.installArtifact(finance_demo_exe);
 
+    // Trade Demo - demonstrates inter-region trade routes and market simulation
+    const trade_demo_exe = createExecutable(b, target, optimize, mod, "trade_demo", "examples/trade_demo.zig", is_macos, &bgfx_flags);
+    b.installArtifact(trade_demo_exe);
+
     // === Run Steps ===
 
     // Run step for basic demo
@@ -161,6 +165,12 @@ pub fn build(b: *std.Build) void {
     const run_finance_cmd = b.addRunArtifact(finance_demo_exe);
     run_finance_cmd.step.dependOn(b.getInstallStep());
     run_finance_step.dependOn(&run_finance_cmd.step);
+
+    // Run step for Trade demo
+    const run_trade_step = b.step("run-trade", "Run the Trade demo (routes, markets, agreements)");
+    const run_trade_cmd = b.addRunArtifact(trade_demo_exe);
+    run_trade_cmd.step.dependOn(b.getInstallStep());
+    run_trade_step.dependOn(&run_trade_cmd.step);
 
     // === Tests ===
 

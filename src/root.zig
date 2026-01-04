@@ -71,6 +71,7 @@ pub const game_speed = @import("game_speed.zig");
 
 // Phase 14: Economy Systems
 pub const finance = @import("finance.zig");
+pub const trade = @import("trade.zig");
 
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
@@ -86,6 +87,7 @@ test {
     _ = @import("viewmodel/root.zig");
     _ = @import("game_speed.zig");
     _ = @import("finance.zig");
+    _ = @import("trade.zig");
 }
 
 pub fn bufferedPrint() !void {
