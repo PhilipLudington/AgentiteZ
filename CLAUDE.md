@@ -324,15 +324,19 @@ UI animation system with 30+ easing functions (linear, quad, cubic, sine, expo, 
 Game speed and timing control with multiple speed settings (pause, 0.5x, 1x, 2x, 4x), pause functionality with resume to previous speed, per-system speed scaling (game delta vs real delta), preset cycling, and custom speed values. Includes SpeedControl UI widget in `src/ui/widgets/speed_control.zig` with full and compact variants.
 
 ### Finance System (`src/finance.zig`)
-Comprehensive economic management with income/expense tracking, budgets, and reports.
+Comprehensive economic management with income/expense tracking, budgets, loans, and credit.
 - **Transaction Types** - income, expense, transfer, adjustment, interest, loan, repayment
 - **Budget Allocation** - per-category budget with priority, min/max limits, rollover support
 - **Deficit Policies** - allow_debt, reject, use_reserves, proportional_cut, priority_cut
 - **Treasury Policies** - allow_negative, block_expenses, warn_only, emergency_loan
 - **Loan Management** - take loans with interest, track repayments, automatic interest accrual
+- **Repayment Schedules** - flexible, fixed_payment, fixed_term, interest_only, balloon with grace periods
+- **Credit Rating System** - CreditRating enum (excellent/good/fair/poor/very_poor), score tracking (0-850), history events
+- **Loan Offers** - LoanOffer with credit-based rate adjustments, min credit requirements
+- **Default Handling** - missed payment tracking, automatic default after threshold, bankruptcy option
 - **Financial Reports** - per-turn reports with category summaries, profit margins, warnings
 - **Historical Data** - report history for graphs and trend analysis
-- **Callbacks** - on_deficit, on_reserve_warning, on_budget_exceeded
+- **Callbacks** - on_deficit, on_reserve_warning, on_budget_exceeded, on_loan_default, on_payment_due
 
 Example usage:
 ```zig

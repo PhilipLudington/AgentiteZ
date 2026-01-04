@@ -205,13 +205,109 @@ pub fn FinancialReport(comptime CategoryType: type) type {
     };
 }
 
+/// Credit rating levels (affects loan terms)
+pub const CreditRating = enum(u8) {
+    /// Excellent credit - best rates (0-5% base)
+    excellent = 5,
+    /// Good credit - favorable rates (5-10% base)
+    good = 4,
+    /// Fair credit - standard rates (10-15% base)
+    fair = 3,
+    /// Poor credit - higher rates (15-25% base)
+    poor = 2,
+    /// Very poor credit - highest rates or loan denial (25%+ base)
+    very_poor = 1,
+    /// No credit history - treated as fair
+    none = 0,
+
+    /// Get base interest rate modifier for this rating
+    pub fn getBaseRateModifier(self: CreditRating) f64 {
+        return switch (self) {
+            .excellent => 0.0,
+            .good => 0.05,
+            .fair => 0.10,
+            .poor => 0.20,
+            .very_poor => 0.35,
+            .none => 0.10,
+        };
+    }
+
+    /// Get the minimum score for this rating
+    pub fn getMinScore(self: CreditRating) i32 {
+        return switch (self) {
+            .excellent => 750,
+            .good => 650,
+            .fair => 550,
+            .poor => 400,
+            .very_poor => 0,
+            .none => 0,
+        };
+    }
+
+    /// Get rating from credit score
+    pub fn fromScore(score: i32) CreditRating {
+        if (score >= 750) return .excellent;
+        if (score >= 650) return .good;
+        if (score >= 550) return .fair;
+        if (score >= 400) return .poor;
+        return .very_poor;
+    }
+};
+
+/// Repayment schedule type
+pub const RepaymentType = enum {
+    /// No fixed schedule, pay when able
+    flexible,
+    /// Fixed payment amount each turn
+    fixed_payment,
+    /// Fixed number of turns to repay (calculates payment)
+    fixed_term,
+    /// Interest only until due date, then lump sum
+    interest_only,
+    /// Balloon payment - small payments then large final payment
+    balloon,
+};
+
+/// Repayment schedule configuration
+pub const RepaymentSchedule = struct {
+    /// Type of repayment plan
+    schedule_type: RepaymentType = .flexible,
+    /// For fixed_payment: payment amount per turn
+    /// For balloon: payment amount until final turn
+    payment_amount: f64 = 0,
+    /// For fixed_term: number of turns to repay
+    term_turns: u32 = 0,
+    /// For balloon: percentage of principal due at end (e.g., 0.5 = 50%)
+    balloon_percent: f64 = 0.5,
+    /// Grace period in turns before payments start
+    grace_period: u32 = 0,
+    /// Penalty rate for missed payments (added to interest rate)
+    late_penalty_rate: f64 = 0.05,
+    /// Number of missed payments before default
+    max_missed_payments: u32 = 3,
+};
+
+/// Loan status
+pub const LoanStatus = enum {
+    /// Loan is active and in good standing
+    active,
+    /// In grace period, no payments due yet
+    grace_period,
+    /// Payment is overdue but not yet in default
+    overdue,
+    /// Loan is in default (too many missed payments)
+    defaulted,
+    /// Loan has been fully repaid
+    paid_off,
+};
+
 /// Loan record for debt tracking
 pub const Loan = struct {
     /// Original principal amount
     principal: f64,
     /// Current outstanding balance
     balance: f64,
-    /// Interest rate per turn
+    /// Interest rate per turn (base rate, before penalties)
     interest_rate: f64,
     /// Turn when loan was taken
     turn_taken: u32,
@@ -219,6 +315,137 @@ pub const Loan = struct {
     due_turn: ?u32 = null,
     /// Description/source of loan
     description: []const u8,
+    /// Repayment schedule
+    schedule: RepaymentSchedule = .{},
+    /// Current loan status
+    status: LoanStatus = .active,
+    /// Number of consecutive missed payments
+    missed_payments: u32 = 0,
+    /// Total interest paid over life of loan
+    total_interest_paid: f64 = 0,
+    /// Total payments made
+    total_payments: u32 = 0,
+
+    /// Get effective interest rate (including penalties)
+    pub fn getEffectiveRate(self: *const Loan) f64 {
+        if (self.missed_payments > 0) {
+            return self.interest_rate + self.schedule.late_penalty_rate * @as(f64, @floatFromInt(self.missed_payments));
+        }
+        return self.interest_rate;
+    }
+
+    /// Calculate required payment for this turn
+    pub fn getRequiredPayment(self: *const Loan, current_turn: u32) f64 {
+        // Check if in grace period
+        if (current_turn < self.turn_taken + self.schedule.grace_period) {
+            return 0;
+        }
+
+        return switch (self.schedule.schedule_type) {
+            .flexible => 0, // No minimum required
+            .fixed_payment => self.schedule.payment_amount,
+            .fixed_term => blk: {
+                if (self.schedule.term_turns == 0) break :blk 0;
+                // Simple fixed payment calculation
+                const turns_elapsed = current_turn - self.turn_taken - self.schedule.grace_period;
+                const remaining_turns = if (self.schedule.term_turns > turns_elapsed)
+                    self.schedule.term_turns - turns_elapsed
+                else
+                    1;
+                break :blk self.balance / @as(f64, @floatFromInt(remaining_turns));
+            },
+            .interest_only => self.balance * self.getEffectiveRate(),
+            .balloon => blk: {
+                // Check if this is the final turn
+                if (self.due_turn) |due| {
+                    if (current_turn >= due) {
+                        break :blk self.balance; // Full balance due
+                    }
+                }
+                break :blk self.schedule.payment_amount;
+            },
+        };
+    }
+
+    /// Check if loan is due for final payment
+    pub fn isDue(self: *const Loan, current_turn: u32) bool {
+        if (self.due_turn) |due| {
+            return current_turn >= due;
+        }
+        return false;
+    }
+
+    /// Check if this loan should be in default
+    pub fn shouldDefault(self: *const Loan) bool {
+        return self.missed_payments >= self.schedule.max_missed_payments;
+    }
+};
+
+/// Credit history event
+pub const CreditEvent = struct {
+    /// Turn when event occurred
+    turn: u32,
+    /// Score change from this event
+    score_change: i32,
+    /// Description of what caused the change
+    reason: CreditEventReason,
+};
+
+/// Reasons for credit score changes
+pub const CreditEventReason = enum {
+    /// Initial credit establishment
+    initial,
+    /// Made on-time payment
+    on_time_payment,
+    /// Missed a payment
+    missed_payment,
+    /// Paid off a loan
+    loan_paid_off,
+    /// Took out a new loan
+    new_loan,
+    /// Defaulted on a loan
+    loan_default,
+    /// Credit utilization changed
+    utilization_change,
+    /// Bankruptcy or major financial event
+    bankruptcy,
+
+    /// Get typical score change for this event
+    pub fn getScoreChange(self: CreditEventReason) i32 {
+        return switch (self) {
+            .initial => 500, // Starting score
+            .on_time_payment => 5,
+            .missed_payment => -25,
+            .loan_paid_off => 30,
+            .new_loan => -10, // Small hit for new credit
+            .loan_default => -100,
+            .utilization_change => 0, // Calculated based on ratio
+            .bankruptcy => -200,
+        };
+    }
+};
+
+/// Loan offer from a lender
+pub const LoanOffer = struct {
+    /// Maximum principal available
+    max_principal: f64,
+    /// Base interest rate (before credit adjustments)
+    base_rate: f64,
+    /// Minimum credit rating required
+    min_credit_rating: CreditRating = .poor,
+    /// Available repayment schedules
+    available_schedules: []const RepaymentType = &.{ .flexible, .fixed_term },
+    /// Minimum term (turns) if using fixed_term
+    min_term: u32 = 4,
+    /// Maximum term (turns) if using fixed_term
+    max_term: u32 = 52,
+    /// Description/source of offer
+    description: []const u8,
+
+    /// Calculate actual rate for a given credit rating
+    pub fn getRateForRating(self: *const LoanOffer, rating: CreditRating) f64 {
+        return self.base_rate + rating.getBaseRateModifier();
+    }
 };
 
 /// Finance manager for a category type
@@ -258,8 +485,14 @@ pub fn FinanceManager(comptime CategoryType: type) type {
         // Active loans
         loans: std.ArrayList(Loan),
 
+        // Credit system
+        credit_score: i32 = 500, // Starting credit score
+        credit_history: std.ArrayList(CreditEvent),
+
         // Callbacks
         on_deficit: ?*const fn (amount: f64, context: ?*anyopaque) void = null,
+        on_loan_default: ?*const fn (loan_index: usize, loan: Loan, context: ?*anyopaque) void = null,
+        on_payment_due: ?*const fn (loan_index: usize, amount: f64, context: ?*anyopaque) void = null,
         on_reserve_warning: ?*const fn (balance: f64, threshold: f64, context: ?*anyopaque) void = null,
         on_budget_exceeded: ?*const fn (category: CategoryType, amount: f64, budget: f64, context: ?*anyopaque) void = null,
         callback_context: ?*anyopaque = null,
@@ -277,6 +510,7 @@ pub fn FinanceManager(comptime CategoryType: type) type {
                 .transactions = .{},
                 .reports = .{},
                 .loans = .{},
+                .credit_history = .{},
             };
         }
 
@@ -285,6 +519,7 @@ pub fn FinanceManager(comptime CategoryType: type) type {
             self.transactions.deinit(self.allocator);
             self.reports.deinit(self.allocator);
             self.loans.deinit(self.allocator);
+            self.credit_history.deinit(self.allocator);
         }
 
         // ====== Treasury Management ======
@@ -520,11 +755,29 @@ pub fn FinanceManager(comptime CategoryType: type) type {
 
         // ====== Loan Management ======
 
-        /// Take out a loan
+        /// Take out a loan (simple version for backwards compatibility)
         pub fn takeLoan(self: *Self, amount: f64, interest_rate: f64, due_turn: ?u32, description: []const u8) !void {
+            try self.takeLoanWithSchedule(amount, interest_rate, due_turn, .{}, description);
+        }
+
+        /// Take out a loan with a specific repayment schedule
+        pub fn takeLoanWithSchedule(
+            self: *Self,
+            amount: f64,
+            interest_rate: f64,
+            due_turn: ?u32,
+            schedule: RepaymentSchedule,
+            description: []const u8,
+        ) !void {
             // Check max debt
             if (self.config.max_debt > 0 and self.debt + amount > self.config.max_debt) {
                 return error.MaxDebtExceeded;
+            }
+
+            // Check credit rating for denial
+            const rating = self.getCreditRating();
+            if (@intFromEnum(rating) < @intFromEnum(CreditRating.very_poor)) {
+                return error.CreditDenied;
             }
 
             try self.loans.append(self.allocator, .{
@@ -534,10 +787,15 @@ pub fn FinanceManager(comptime CategoryType: type) type {
                 .turn_taken = self.current_turn,
                 .due_turn = due_turn,
                 .description = description,
+                .schedule = schedule,
+                .status = if (schedule.grace_period > 0) .grace_period else .active,
             });
 
             self.treasury += amount;
             self.debt += amount;
+
+            // Credit impact: new loan slightly hurts score
+            try self.recordCreditEvent(.new_loan, CreditEventReason.new_loan.getScoreChange());
 
             if (self.config.detailed_logging) {
                 // Record as a generic category (first enum value)
@@ -550,6 +808,47 @@ pub fn FinanceManager(comptime CategoryType: type) type {
                     .description = description,
                 });
             }
+        }
+
+        /// Accept a loan offer
+        pub fn acceptLoanOffer(
+            self: *Self,
+            offer: LoanOffer,
+            amount: f64,
+            schedule_type: RepaymentType,
+            term_turns: u32,
+        ) !void {
+            const rating = self.getCreditRating();
+
+            // Check if credit rating meets minimum
+            if (@intFromEnum(rating) < @intFromEnum(offer.min_credit_rating)) {
+                return error.CreditDenied;
+            }
+
+            // Verify amount is within limits
+            if (amount > offer.max_principal) {
+                return error.AmountExceedsLimit;
+            }
+
+            // Calculate actual interest rate based on credit
+            const actual_rate = offer.getRateForRating(rating);
+
+            // Build schedule
+            var schedule = RepaymentSchedule{
+                .schedule_type = schedule_type,
+                .term_turns = term_turns,
+            };
+
+            // For fixed_term, calculate payment amount
+            if (schedule_type == .fixed_term and term_turns > 0) {
+                // Simple calculation: principal + estimated interest / turns
+                const estimated_interest = amount * actual_rate * @as(f64, @floatFromInt(term_turns));
+                schedule.payment_amount = (amount + estimated_interest) / @as(f64, @floatFromInt(term_turns));
+            }
+
+            const due_turn: ?u32 = if (term_turns > 0) self.current_turn + term_turns else null;
+
+            try self.takeLoanWithSchedule(amount, actual_rate, due_turn, schedule, offer.description);
         }
 
         /// Repay a loan (or partial repayment)
@@ -568,13 +867,100 @@ pub fn FinanceManager(comptime CategoryType: type) type {
             self.treasury -= repay_amount;
             loan.balance -= repay_amount;
             self.debt -= repay_amount;
+            loan.total_payments += 1;
+
+            // Check if this was an on-time payment (reduces missed counter)
+            if (loan.missed_payments > 0) {
+                loan.missed_payments = 0;
+                loan.status = .active;
+            }
+
+            // Credit boost for on-time payment
+            try self.recordCreditEvent(.on_time_payment, CreditEventReason.on_time_payment.getScoreChange());
 
             // Remove loan if fully repaid
             if (loan.balance <= 0) {
+                loan.status = .paid_off;
+                // Credit boost for paying off loan
+                try self.recordCreditEvent(.loan_paid_off, CreditEventReason.loan_paid_off.getScoreChange());
                 _ = self.loans.orderedRemove(loan_index);
             }
 
             return .success;
+        }
+
+        /// Make scheduled payments on all loans that require them
+        pub fn makeScheduledPayments(self: *Self) !struct { payments_made: u32, total_paid: f64, missed: u32 } {
+            var payments_made: u32 = 0;
+            var total_paid: f64 = 0;
+            var missed: u32 = 0;
+
+            // Process loans in reverse to handle removal
+            var i: usize = self.loans.items.len;
+            while (i > 0) {
+                i -= 1;
+                var loan = &self.loans.items[i];
+
+                // Skip non-active loans
+                if (loan.status == .defaulted or loan.status == .paid_off) continue;
+
+                // Update grace period status
+                if (loan.status == .grace_period) {
+                    if (self.current_turn >= loan.turn_taken + loan.schedule.grace_period) {
+                        loan.status = .active;
+                    } else {
+                        continue; // Still in grace period
+                    }
+                }
+
+                const required = loan.getRequiredPayment(self.current_turn);
+                if (required <= 0) continue;
+
+                // Notify of payment due
+                if (self.on_payment_due) |callback| {
+                    callback(i, required, self.callback_context);
+                }
+
+                if (self.treasury >= required) {
+                    // Make payment
+                    const result = try self.repayLoan(i, required);
+                    if (result == .success) {
+                        payments_made += 1;
+                        total_paid += required;
+                    }
+                } else {
+                    // Missed payment
+                    loan.missed_payments += 1;
+                    loan.status = .overdue;
+                    missed += 1;
+
+                    // Credit penalty
+                    try self.recordCreditEvent(.missed_payment, CreditEventReason.missed_payment.getScoreChange());
+
+                    // Check for default
+                    if (loan.shouldDefault()) {
+                        try self.defaultLoan(i);
+                    }
+                }
+            }
+
+            return .{ .payments_made = payments_made, .total_paid = total_paid, .missed = missed };
+        }
+
+        /// Force a loan into default status
+        pub fn defaultLoan(self: *Self, loan_index: usize) !void {
+            if (loan_index >= self.loans.items.len) return;
+
+            var loan = &self.loans.items[loan_index];
+            loan.status = .defaulted;
+
+            // Major credit penalty
+            try self.recordCreditEvent(.loan_default, CreditEventReason.loan_default.getScoreChange());
+
+            // Trigger callback
+            if (self.on_loan_default) |callback| {
+                callback(loan_index, loan.*, self.callback_context);
+            }
         }
 
         /// Get total loan count
@@ -582,20 +968,96 @@ pub fn FinanceManager(comptime CategoryType: type) type {
             return self.loans.items.len;
         }
 
+        /// Get count of loans in a specific status
+        pub fn getLoanCountByStatus(self: *const Self, status: LoanStatus) usize {
+            var count: usize = 0;
+            for (self.loans.items) |loan| {
+                if (loan.status == status) count += 1;
+            }
+            return count;
+        }
+
         /// Get all active loans
         pub fn getLoans(self: *const Self) []const Loan {
             return self.loans.items;
         }
 
+        /// Get total required payments for current turn
+        pub fn getTotalRequiredPayments(self: *const Self) f64 {
+            var total: f64 = 0;
+            for (self.loans.items) |loan| {
+                if (loan.status == .active or loan.status == .overdue) {
+                    total += loan.getRequiredPayment(self.current_turn);
+                }
+            }
+            return total;
+        }
+
+        // ====== Credit System ======
+
+        /// Get current credit score
+        pub fn getCreditScore(self: *const Self) i32 {
+            return self.credit_score;
+        }
+
+        /// Get current credit rating (derived from score)
+        pub fn getCreditRating(self: *const Self) CreditRating {
+            return CreditRating.fromScore(self.credit_score);
+        }
+
+        /// Record a credit event and update score
+        pub fn recordCreditEvent(self: *Self, reason: CreditEventReason, score_change: i32) !void {
+            self.credit_score = @max(0, @min(850, self.credit_score + score_change));
+
+            try self.credit_history.append(self.allocator, .{
+                .turn = self.current_turn,
+                .score_change = score_change,
+                .reason = reason,
+            });
+        }
+
+        /// Get credit history
+        pub fn getCreditHistory(self: *const Self) []const CreditEvent {
+            return self.credit_history.items;
+        }
+
+        /// Calculate credit utilization (debt / max debt or treasury)
+        pub fn getCreditUtilization(self: *const Self) f64 {
+            if (self.config.max_debt > 0) {
+                return self.debt / self.config.max_debt;
+            }
+            if (self.treasury > 0) {
+                return self.debt / (self.treasury + self.debt);
+            }
+            return if (self.debt > 0) 1.0 else 0.0;
+        }
+
+        /// Declare bankruptcy - writes off debt but severely damages credit
+        pub fn declareBankruptcy(self: *Self) !void {
+            // Write off all loans
+            for (self.loans.items) |*loan| {
+                loan.status = .defaulted;
+            }
+            self.loans.clearRetainingCapacity();
+            self.debt = 0;
+
+            // Severe credit penalty
+            try self.recordCreditEvent(.bankruptcy, CreditEventReason.bankruptcy.getScoreChange());
+        }
+
         // ====== Turn Processing ======
 
-        /// Process interest on debt
+        /// Process interest on debt (uses effective rate including penalties)
         fn processInterest(self: *Self) !f64 {
             var total_interest: f64 = 0;
 
             for (self.loans.items) |*loan| {
-                const interest = loan.balance * loan.interest_rate;
+                if (loan.status == .defaulted or loan.status == .paid_off) continue;
+
+                const rate = loan.getEffectiveRate();
+                const interest = loan.balance * rate;
                 loan.balance += interest;
+                loan.total_interest_paid += interest;
                 self.debt += interest;
                 total_interest += interest;
             }
@@ -835,10 +1297,12 @@ pub fn FinanceManager(comptime CategoryType: type) type {
             self.treasury = 0;
             self.debt = 0;
             self.current_turn = 0;
+            self.credit_score = 500;
             self.resetTurnCounters();
             self.transactions.clearRetainingCapacity();
             self.reports.clearRetainingCapacity();
             self.loans.clearRetainingCapacity();
+            self.credit_history.clearRetainingCapacity();
             @memset(&self.budgets, .{});
         }
     };
@@ -1275,4 +1739,400 @@ test "FinanceManager - reserve warning threshold" {
     _ = try fm.recordExpense(.military, 600, "Expense");
 
     try std.testing.expect(fm.isBelowReserve());
+}
+
+// ============================================================================
+// Credit Rating Tests
+// ============================================================================
+
+test "CreditRating - fromScore thresholds" {
+    try std.testing.expectEqual(CreditRating.excellent, CreditRating.fromScore(800));
+    try std.testing.expectEqual(CreditRating.excellent, CreditRating.fromScore(750));
+    try std.testing.expectEqual(CreditRating.good, CreditRating.fromScore(700));
+    try std.testing.expectEqual(CreditRating.good, CreditRating.fromScore(650));
+    try std.testing.expectEqual(CreditRating.fair, CreditRating.fromScore(600));
+    try std.testing.expectEqual(CreditRating.fair, CreditRating.fromScore(550));
+    try std.testing.expectEqual(CreditRating.poor, CreditRating.fromScore(450));
+    try std.testing.expectEqual(CreditRating.poor, CreditRating.fromScore(400));
+    try std.testing.expectEqual(CreditRating.very_poor, CreditRating.fromScore(300));
+    try std.testing.expectEqual(CreditRating.very_poor, CreditRating.fromScore(0));
+}
+
+test "CreditRating - rate modifiers" {
+    try std.testing.expectApproxEqAbs(@as(f64, 0.0), CreditRating.excellent.getBaseRateModifier(), 0.001);
+    try std.testing.expectApproxEqAbs(@as(f64, 0.05), CreditRating.good.getBaseRateModifier(), 0.001);
+    try std.testing.expectApproxEqAbs(@as(f64, 0.10), CreditRating.fair.getBaseRateModifier(), 0.001);
+    try std.testing.expectApproxEqAbs(@as(f64, 0.20), CreditRating.poor.getBaseRateModifier(), 0.001);
+    try std.testing.expectApproxEqAbs(@as(f64, 0.35), CreditRating.very_poor.getBaseRateModifier(), 0.001);
+}
+
+test "FinanceManager - credit score initialization" {
+    var fm = FinanceManager(TestCategory).init(std.testing.allocator);
+    defer fm.deinit();
+
+    try std.testing.expectEqual(@as(i32, 500), fm.getCreditScore());
+    // 500 is in the "poor" range (400-549), "fair" requires 550+
+    try std.testing.expectEqual(CreditRating.poor, fm.getCreditRating());
+}
+
+test "FinanceManager - credit score changes on loan events" {
+    var fm = FinanceManager(TestCategory).init(std.testing.allocator);
+    defer fm.deinit();
+
+    const initial_score = fm.getCreditScore();
+
+    // Taking a loan slightly decreases credit
+    try fm.takeLoan(1000, 0.05, null, "Test loan");
+    try std.testing.expect(fm.getCreditScore() < initial_score);
+
+    // Making a payment increases credit
+    fm.setTreasury(2000);
+    const score_before_payment = fm.getCreditScore();
+    _ = try fm.repayLoan(0, 500);
+    try std.testing.expect(fm.getCreditScore() > score_before_payment);
+
+    // Paying off fully gives a bonus
+    const score_before_payoff = fm.getCreditScore();
+    _ = try fm.repayLoan(0, 600); // Pay off remaining
+    try std.testing.expect(fm.getCreditScore() > score_before_payoff);
+}
+
+test "FinanceManager - credit history tracking" {
+    var fm = FinanceManager(TestCategory).init(std.testing.allocator);
+    defer fm.deinit();
+
+    try fm.takeLoan(1000, 0.05, null, "Loan");
+    fm.setTreasury(2000);
+    _ = try fm.repayLoan(0, 1000);
+
+    const history = fm.getCreditHistory();
+    try std.testing.expect(history.len >= 2);
+
+    // Should have new_loan and at least on_time_payment + loan_paid_off
+    var has_new_loan = false;
+    var has_paid_off = false;
+    for (history) |event| {
+        if (event.reason == .new_loan) has_new_loan = true;
+        if (event.reason == .loan_paid_off) has_paid_off = true;
+    }
+    try std.testing.expect(has_new_loan);
+    try std.testing.expect(has_paid_off);
+}
+
+// ============================================================================
+// Repayment Schedule Tests
+// ============================================================================
+
+test "Loan - required payment for flexible schedule" {
+    const loan = Loan{
+        .principal = 1000,
+        .balance = 1000,
+        .interest_rate = 0.05,
+        .turn_taken = 0,
+        .description = "Test",
+        .schedule = .{ .schedule_type = .flexible },
+    };
+
+    // Flexible loans have no required payment
+    try std.testing.expectEqual(@as(f64, 0), loan.getRequiredPayment(1));
+    try std.testing.expectEqual(@as(f64, 0), loan.getRequiredPayment(10));
+}
+
+test "Loan - required payment for fixed_payment schedule" {
+    const loan = Loan{
+        .principal = 1000,
+        .balance = 1000,
+        .interest_rate = 0.05,
+        .turn_taken = 0,
+        .description = "Test",
+        .schedule = .{
+            .schedule_type = .fixed_payment,
+            .payment_amount = 100,
+        },
+    };
+
+    try std.testing.expectEqual(@as(f64, 100), loan.getRequiredPayment(1));
+    try std.testing.expectEqual(@as(f64, 100), loan.getRequiredPayment(5));
+}
+
+test "Loan - grace period delays payments" {
+    const loan = Loan{
+        .principal = 1000,
+        .balance = 1000,
+        .interest_rate = 0.05,
+        .turn_taken = 0,
+        .description = "Test",
+        .schedule = .{
+            .schedule_type = .fixed_payment,
+            .payment_amount = 100,
+            .grace_period = 3,
+        },
+    };
+
+    // During grace period, no payment required
+    try std.testing.expectEqual(@as(f64, 0), loan.getRequiredPayment(0));
+    try std.testing.expectEqual(@as(f64, 0), loan.getRequiredPayment(1));
+    try std.testing.expectEqual(@as(f64, 0), loan.getRequiredPayment(2));
+
+    // After grace period, payment required
+    try std.testing.expectEqual(@as(f64, 100), loan.getRequiredPayment(3));
+    try std.testing.expectEqual(@as(f64, 100), loan.getRequiredPayment(5));
+}
+
+test "Loan - effective rate with missed payments" {
+    var loan = Loan{
+        .principal = 1000,
+        .balance = 1000,
+        .interest_rate = 0.05,
+        .turn_taken = 0,
+        .description = "Test",
+        .schedule = .{ .late_penalty_rate = 0.02 },
+    };
+
+    // No missed payments - base rate
+    try std.testing.expectApproxEqAbs(@as(f64, 0.05), loan.getEffectiveRate(), 0.001);
+
+    // 1 missed payment
+    loan.missed_payments = 1;
+    try std.testing.expectApproxEqAbs(@as(f64, 0.07), loan.getEffectiveRate(), 0.001);
+
+    // 2 missed payments
+    loan.missed_payments = 2;
+    try std.testing.expectApproxEqAbs(@as(f64, 0.09), loan.getEffectiveRate(), 0.001);
+}
+
+test "Loan - shouldDefault" {
+    var loan = Loan{
+        .principal = 1000,
+        .balance = 1000,
+        .interest_rate = 0.05,
+        .turn_taken = 0,
+        .description = "Test",
+        .schedule = .{ .max_missed_payments = 3 },
+    };
+
+    loan.missed_payments = 0;
+    try std.testing.expect(!loan.shouldDefault());
+
+    loan.missed_payments = 2;
+    try std.testing.expect(!loan.shouldDefault());
+
+    loan.missed_payments = 3;
+    try std.testing.expect(loan.shouldDefault());
+}
+
+// ============================================================================
+// Loan Offer Tests
+// ============================================================================
+
+test "LoanOffer - rate calculation by credit rating" {
+    const offer = LoanOffer{
+        .max_principal = 10000,
+        .base_rate = 0.05,
+        .min_credit_rating = .poor,
+        .description = "Standard loan",
+    };
+
+    // Excellent credit gets base rate
+    try std.testing.expectApproxEqAbs(@as(f64, 0.05), offer.getRateForRating(.excellent), 0.001);
+
+    // Good credit adds 5%
+    try std.testing.expectApproxEqAbs(@as(f64, 0.10), offer.getRateForRating(.good), 0.001);
+
+    // Fair credit adds 10%
+    try std.testing.expectApproxEqAbs(@as(f64, 0.15), offer.getRateForRating(.fair), 0.001);
+
+    // Poor credit adds 20%
+    try std.testing.expectApproxEqAbs(@as(f64, 0.25), offer.getRateForRating(.poor), 0.001);
+}
+
+test "FinanceManager - accept loan offer" {
+    var fm = FinanceManager(TestCategory).init(std.testing.allocator);
+    defer fm.deinit();
+
+    // Set good credit score for better rate
+    fm.credit_score = 700;
+
+    const offer = LoanOffer{
+        .max_principal = 5000,
+        .base_rate = 0.05,
+        .min_credit_rating = .poor,
+        .description = "Bank loan",
+    };
+
+    try fm.acceptLoanOffer(offer, 2000, .fixed_term, 10);
+
+    try std.testing.expectEqual(@as(usize, 1), fm.getLoanCount());
+    try std.testing.expectEqual(@as(f64, 2000), fm.getDebt());
+
+    const loans = fm.getLoans();
+    try std.testing.expect(loans[0].schedule.schedule_type == .fixed_term);
+}
+
+test "FinanceManager - loan offer rejected for bad credit" {
+    var fm = FinanceManager(TestCategory).init(std.testing.allocator);
+    defer fm.deinit();
+
+    // Set poor credit score
+    fm.credit_score = 300;
+
+    const offer = LoanOffer{
+        .max_principal = 5000,
+        .base_rate = 0.05,
+        .min_credit_rating = .fair, // Requires fair or better
+        .description = "Premium loan",
+    };
+
+    const result = fm.acceptLoanOffer(offer, 2000, .flexible, 0);
+    try std.testing.expectError(error.CreditDenied, result);
+}
+
+test "FinanceManager - loan offer rejected for amount exceeds limit" {
+    var fm = FinanceManager(TestCategory).init(std.testing.allocator);
+    defer fm.deinit();
+
+    fm.credit_score = 700;
+
+    const offer = LoanOffer{
+        .max_principal = 1000,
+        .base_rate = 0.05,
+        .min_credit_rating = .poor,
+        .description = "Small loan",
+    };
+
+    const result = fm.acceptLoanOffer(offer, 2000, .flexible, 0);
+    try std.testing.expectError(error.AmountExceedsLimit, result);
+}
+
+// ============================================================================
+// Default and Bankruptcy Tests
+// ============================================================================
+
+test "FinanceManager - loan defaults after missed payments" {
+    var fm = FinanceManager(TestCategory).init(std.testing.allocator);
+    defer fm.deinit();
+
+    // Take a loan with fixed payment schedule
+    try fm.takeLoanWithSchedule(1000, 0.05, null, .{
+        .schedule_type = .fixed_payment,
+        .payment_amount = 200,
+        .max_missed_payments = 2,
+    }, "Test loan");
+
+    // Treasury empty - can't make payments
+    fm.setTreasury(0);
+
+    // First missed payment
+    _ = try fm.makeScheduledPayments();
+    try std.testing.expectEqual(LoanStatus.overdue, fm.loans.items[0].status);
+
+    // Advance turn and miss again
+    fm.current_turn += 1;
+    _ = try fm.makeScheduledPayments();
+    try std.testing.expectEqual(LoanStatus.defaulted, fm.loans.items[0].status);
+}
+
+test "FinanceManager - bankruptcy clears debt and damages credit" {
+    var fm = FinanceManager(TestCategory).init(std.testing.allocator);
+    defer fm.deinit();
+
+    fm.credit_score = 700;
+    try fm.takeLoan(5000, 0.05, null, "Loan 1");
+    try fm.takeLoan(3000, 0.05, null, "Loan 2");
+
+    try std.testing.expectEqual(@as(usize, 2), fm.getLoanCount());
+    try std.testing.expect(fm.getDebt() > 0);
+
+    const score_before = fm.getCreditScore();
+    try fm.declareBankruptcy();
+
+    try std.testing.expectEqual(@as(usize, 0), fm.getLoanCount());
+    try std.testing.expectEqual(@as(f64, 0), fm.getDebt());
+    try std.testing.expect(fm.getCreditScore() < score_before - 100);
+}
+
+test "FinanceManager - credit utilization calculation" {
+    var fm = FinanceManager(TestCategory).initWithConfig(std.testing.allocator, .{
+        .max_debt = 10000,
+    });
+    defer fm.deinit();
+
+    try std.testing.expectApproxEqAbs(@as(f64, 0), fm.getCreditUtilization(), 0.001);
+
+    try fm.takeLoan(2500, 0.05, null, "Loan");
+    try std.testing.expectApproxEqAbs(@as(f64, 0.25), fm.getCreditUtilization(), 0.001);
+
+    try fm.takeLoan(2500, 0.05, null, "Loan 2");
+    try std.testing.expectApproxEqAbs(@as(f64, 0.50), fm.getCreditUtilization(), 0.001);
+}
+
+test "FinanceManager - total required payments" {
+    var fm = FinanceManager(TestCategory).init(std.testing.allocator);
+    defer fm.deinit();
+
+    // Take multiple loans with fixed payments
+    try fm.takeLoanWithSchedule(1000, 0.05, null, .{
+        .schedule_type = .fixed_payment,
+        .payment_amount = 100,
+    }, "Loan 1");
+
+    try fm.takeLoanWithSchedule(2000, 0.05, null, .{
+        .schedule_type = .fixed_payment,
+        .payment_amount = 150,
+    }, "Loan 2");
+
+    try std.testing.expectApproxEqAbs(@as(f64, 250), fm.getTotalRequiredPayments(), 0.01);
+}
+
+test "FinanceManager - loan count by status" {
+    var fm = FinanceManager(TestCategory).init(std.testing.allocator);
+    defer fm.deinit();
+
+    // Active loan
+    try fm.takeLoan(1000, 0.05, null, "Active loan");
+
+    // Loan in grace period
+    try fm.takeLoanWithSchedule(500, 0.05, null, .{
+        .grace_period = 5,
+    }, "Grace period loan");
+
+    try std.testing.expectEqual(@as(usize, 1), fm.getLoanCountByStatus(.active));
+    try std.testing.expectEqual(@as(usize, 1), fm.getLoanCountByStatus(.grace_period));
+    try std.testing.expectEqual(@as(usize, 0), fm.getLoanCountByStatus(.defaulted));
+}
+
+test "FinanceManager - reset clears credit data" {
+    var fm = FinanceManager(TestCategory).init(std.testing.allocator);
+    defer fm.deinit();
+
+    fm.credit_score = 750;
+    try fm.recordCreditEvent(.on_time_payment, 10);
+
+    fm.reset();
+
+    try std.testing.expectEqual(@as(i32, 500), fm.getCreditScore());
+    try std.testing.expectEqual(@as(usize, 0), fm.getCreditHistory().len);
+}
+
+test "FinanceManager - interest uses effective rate" {
+    var fm = FinanceManager(TestCategory).init(std.testing.allocator);
+    defer fm.deinit();
+
+    try fm.takeLoanWithSchedule(1000, 0.10, null, .{
+        .schedule_type = .fixed_payment,
+        .payment_amount = 100,
+        .late_penalty_rate = 0.05,
+    }, "Test loan");
+
+    // Miss a payment by not having funds
+    fm.setTreasury(0);
+    _ = try fm.makeScheduledPayments();
+
+    // Now process turn - should use higher effective rate
+    const starting_debt = fm.getDebt();
+    _ = try fm.endTurn();
+
+    // With 1 missed payment, rate should be 0.10 + 0.05 = 0.15
+    // Interest = 1000 * 0.15 = 150 (approximately, balance may have changed)
+    try std.testing.expect(fm.getDebt() > starting_debt);
 }

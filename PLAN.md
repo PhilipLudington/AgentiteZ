@@ -185,11 +185,12 @@ These systems extend the existing strategy game framework.
   - Treasury management with reserve thresholds
   Implemented in `src/finance.zig` with 25 tests
 
-- [ ] **Loan System** - Borrowing mechanics
-  - Loan offers with interest rates
-  - Repayment schedules
-  - Credit rating impact
-  - Default consequences
+- [x] **Loan System** - Borrowing mechanics
+  - Loan offers with interest rates (LoanOffer with credit-based rate adjustment)
+  - Repayment schedules (flexible, fixed_payment, fixed_term, interest_only, balloon)
+  - Credit rating impact (CreditRating enum with score tracking and history)
+  - Default consequences (missed payments, defaultLoan(), declareBankruptcy())
+  Integrated into `src/finance.zig` with 20+ new tests
 
 - [ ] **Trade Routes** - Inter-region trade
   - Trade route creation and management
