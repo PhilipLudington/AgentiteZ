@@ -159,6 +159,7 @@ The project has two main modules:
    - `async_loader` - Background resource loading with thread pool, priorities, and cancellation
    - `tween` - UI animation with easing functions, property tweening, and composition
    - `viewmodel` - MVVM data binding with observables, computed properties, and widget bindings
+   - `finance` - Economic management with income/expense tracking, budgets, and reports
 
 2. **Executable** (`src/main.zig`) - Main application entry point that imports the AgentiteZ module
 
@@ -321,6 +322,35 @@ UI animation system with 30+ easing functions (linear, quad, cubic, sine, expo, 
 
 ### Game Speed System (`src/game_speed.zig`) **[Full docs](docs/api/game-speed.md)**
 Game speed and timing control with multiple speed settings (pause, 0.5x, 1x, 2x, 4x), pause functionality with resume to previous speed, per-system speed scaling (game delta vs real delta), preset cycling, and custom speed values. Includes SpeedControl UI widget in `src/ui/widgets/speed_control.zig` with full and compact variants.
+
+### Finance System (`src/finance.zig`)
+Comprehensive economic management with income/expense tracking, budgets, and reports.
+- **Transaction Types** - income, expense, transfer, adjustment, interest, loan, repayment
+- **Budget Allocation** - per-category budget with priority, min/max limits, rollover support
+- **Deficit Policies** - allow_debt, reject, use_reserves, proportional_cut, priority_cut
+- **Treasury Policies** - allow_negative, block_expenses, warn_only, emergency_loan
+- **Loan Management** - take loans with interest, track repayments, automatic interest accrual
+- **Financial Reports** - per-turn reports with category summaries, profit margins, warnings
+- **Historical Data** - report history for graphs and trend analysis
+- **Callbacks** - on_deficit, on_reserve_warning, on_budget_exceeded
+
+Example usage:
+```zig
+const finance = @import("AgentiteZ").finance;
+const Category = enum { military, research, infrastructure, trade };
+
+var fm = finance.FinanceManager(Category).init(allocator);
+defer fm.deinit();
+
+fm.setTreasury(10000);
+fm.setBudget(.military, .{ .allocated = 2000, .priority = 1 });
+
+try fm.recordIncome(.trade, 1500, "Export revenue");
+_ = try fm.recordExpense(.military, 500, "Unit upkeep");
+
+const report = try fm.endTurn();
+// report contains: total_income, total_expenses, net_change, per-category summaries
+```
 
 ### ViewModel System (`src/viewmodel/`)
 MVVM data binding for reactive UI. Core types:

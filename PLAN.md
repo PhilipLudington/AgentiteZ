@@ -176,11 +176,14 @@ Features identified from Agentite (C/C++) engine to port to AgentiteZ (Zig).
 These systems extend the existing strategy game framework.
 
 ### Economy & Resources
-- [ ] **Finance System** - Economic management
-  - Income/expense tracking
-  - Budget categories
-  - Financial reports per turn
-  - Deficit handling
+- [x] **Finance System** - Economic management
+  - Income/expense tracking with categories
+  - Budget allocation and enforcement with priorities
+  - Per-turn financial reports with detailed breakdowns
+  - Deficit handling with configurable policies
+  - Loan management with interest accrual
+  - Treasury management with reserve thresholds
+  Implemented in `src/finance.zig` with 25 tests
 
 - [ ] **Loan System** - Borrowing mechanics
   - Loan offers with interest rates

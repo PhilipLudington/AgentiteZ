@@ -96,6 +96,10 @@ pub fn build(b: *std.Build) void {
     const game_speed_demo_exe = createExecutable(b, target, optimize, mod, "game_speed_demo", "examples/game_speed_demo.zig", is_macos, &bgfx_flags);
     b.installArtifact(game_speed_demo_exe);
 
+    // Finance Demo - demonstrates economic management with budgets and reports
+    const finance_demo_exe = createExecutable(b, target, optimize, mod, "finance_demo", "examples/finance_demo.zig", is_macos, &bgfx_flags);
+    b.installArtifact(finance_demo_exe);
+
     // === Run Steps ===
 
     // Run step for basic demo
@@ -151,6 +155,12 @@ pub fn build(b: *std.Build) void {
     const run_speed_cmd = b.addRunArtifact(game_speed_demo_exe);
     run_speed_cmd.step.dependOn(b.getInstallStep());
     run_speed_step.dependOn(&run_speed_cmd.step);
+
+    // Run step for Finance demo
+    const run_finance_step = b.step("run-finance", "Run the Finance demo (budgets, reports, loans)");
+    const run_finance_cmd = b.addRunArtifact(finance_demo_exe);
+    run_finance_cmd.step.dependOn(b.getInstallStep());
+    run_finance_step.dependOn(&run_finance_cmd.step);
 
     // === Tests ===
 

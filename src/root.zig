@@ -69,6 +69,9 @@ pub const viewmodel = @import("viewmodel/root.zig");
 // Phase 13: Game Flow
 pub const game_speed = @import("game_speed.zig");
 
+// Phase 14: Economy Systems
+pub const finance = @import("finance.zig");
+
 // Force inclusion of stb_truetype exports (zig_stb_alloc, zig_stb_free)
 // These are needed by C code even if not directly referenced from Zig.
 comptime {
@@ -82,6 +85,7 @@ test {
     _ = @import("gizmo.zig");
     _ = @import("viewmodel/root.zig");
     _ = @import("game_speed.zig");
+    _ = @import("finance.zig");
 }
 
 pub fn bufferedPrint() !void {
